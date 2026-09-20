@@ -1,0 +1,11 @@
+{
+  "flow_complete": true,
+  "broken_links": [],
+  "mock_vs_real": {
+    "opensearch": "real",
+    "corretto": "real",
+    "cedar": "real",
+    "bedrock": "mock"
+  },
+  "async_handling": "proper"
+}

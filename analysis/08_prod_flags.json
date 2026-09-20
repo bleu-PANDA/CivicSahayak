@@ -1,0 +1,11 @@
+{
+  "hardcoded_secrets": [],
+  "real_aws_sdk_calls": [],
+  "missing_error_handling": [],
+  "no_input_validation": [],
+  "blocking_calls_in_async": [],
+  "missing_health_checks": [],
+  "no_logging": [],
+  "docker_issues": [],
+  "test_gaps": []
+}

@@ -1,0 +1,12 @@
+{
+  "cedar_middleware_present": true,
+  "policies_loaded": true,
+  "routes_protected": [
+    "POST /api/evaluate (Protected by Cedar Policy: policy-citizen-evaluate)",
+    "POST /api/upload (Protected by Cedar Policy: policy-citizen-upload)",
+    "POST /api/checklist (Protected by Cedar Policy: policy-citizen-checklist)"
+  ],
+  "agent_tool_permissions": true,
+  "document_access_control": true,
+  "vulnerabilities": []
+}

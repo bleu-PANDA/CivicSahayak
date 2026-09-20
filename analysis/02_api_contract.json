@@ -1,0 +1,22 @@
+{
+  "endpoint_compliance": {
+    "/api/evaluate": {
+      "status": "match",
+      "diffs": []
+    },
+    "/api/upload": {
+      "status": "match",
+      "diffs": []
+    },
+    "/api/checklist": {
+      "status": "match",
+      "diffs": []
+    },
+    "/api/health": {
+      "status": "match",
+      "diffs": []
+    }
+  },
+  "breaking_changes": [],
+  "missing_endpoints": []
+}

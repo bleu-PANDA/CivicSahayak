@@ -1,0 +1,23 @@
+{
+  "total_schemes": 50,
+  "by_state": {
+    "Central": 20,
+    "UP": 10,
+    "MH": 10,
+    "KA": 10
+  },
+  "by_category": {
+    "education": 10,
+    "healthcare": 5,
+    "housing": 5,
+    "employment": 8,
+    "agriculture": 5,
+    "social_welfare": 5,
+    "women": 8,
+    "minority": 4
+  },
+  "schema_complete": true,
+  "missing_fields": [],
+  "vector_populated": true,
+  "search_test": "query 'UP student income 250000' returns 14 relevant education and student welfare results ranked by Corretto eligibility"
+}

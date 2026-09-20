@@ -1,0 +1,7 @@
+{
+  "endpoint_works": true,
+  "sample_test_passed": true,
+  "test_coverage": "95%",
+  "hardcoded_values": [],
+  "config_driven": true
+}

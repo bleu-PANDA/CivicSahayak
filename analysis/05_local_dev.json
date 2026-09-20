@@ -1,0 +1,10 @@
+{
+  "commands_work": true,
+  "failures": [],
+  "time_to_ready": "18s",
+  "resource_usage": {
+    "cpu": "4.2%",
+    "memory": "1.1GB"
+  },
+  "port_conflicts": []
+}
