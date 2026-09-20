@@ -89,16 +89,16 @@ export default function App() {
   return (
     <div className="relative min-h-screen text-zinc-100 flex flex-col font-sans bg-[#02040A]">
       
-      {/* Fixed Still Background Image */}
+      {/* Fixed Still Background Image (Bright & Visible) */}
       <div className="fixed inset-0 z-0 pointer-events-none select-none overflow-hidden">
         <img
           src="/bg-india-gate.jpg"
           alt="India Gate Background"
-          className="w-full h-full object-cover object-center filter brightness-[0.72] contrast-[1.08]"
+          className="w-full h-full object-cover object-center filter brightness-[0.95] contrast-[1.04]"
         />
-        {/* Cinematic atmospheric overlays for text readability */}
-        <div className="absolute inset-0 bg-[#02040A]/50" />
-        <div className="absolute inset-0 bg-gradient-to-t from-[#02040A] via-transparent to-[#02040A]/40" />
+        {/* Soft subtle tint for card separation while keeping India Gate clearly visible */}
+        <div className="absolute inset-0 bg-[#02040A]/25" />
+        <div className="absolute inset-0 bg-gradient-to-t from-[#02040A]/70 via-transparent to-black/10" />
       </div>
 
       {/* Top Navigation */}
