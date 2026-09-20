@@ -17,7 +17,7 @@ export default function App() {
   const [selectedCategory, setSelectedCategory] = useState('All');
 
   // Data states
-  const [userProfile, setUserProfile] = useState(PRESET_CITIZENS[0].profile);
+  const [userProfile, setUserProfile] = useState(null);
   const [schemes, setSchemes] = useState([]);
   const [recommendedBundle, setRecommendedBundle] = useState(null);
   const [telemetryLogs, setTelemetryLogs] = useState([]);
@@ -51,12 +51,15 @@ export default function App() {
         setSelectedCategory(targetCategory);
       }
 
+      // Send profileOverride (e.g. from preset click) or null, never stale previous profile
+      const effectiveProfile = profileOverride !== undefined ? profileOverride : null;
+
       const response = await fetch('/api/evaluate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           query: queryText !== undefined ? queryText : currentQuery,
-          profile: profileOverride || userProfile,
+          profile: effectiveProfile,
           verifiedDocIds,
           category: targetCategory
         })
@@ -68,7 +71,9 @@ export default function App() {
         setSchemes(data.schemes);
         setRecommendedBundle(data.recommendation);
         setTelemetryLogs(data.telemetryLogs);
-        showToast(`Evaluation complete: ${data.schemes.length} schemes ranked by Corretto`);
+        if (data.profile?.isPromptProvided) {
+          showToast(`Evaluation complete: ${data.schemes.length} schemes ranked for your profile`);
+        }
       }
     } catch (err) {
       console.error('Evaluation API error:', err);
@@ -78,9 +83,9 @@ export default function App() {
     }
   };
 
-  // Initial load: keep search bar clean while evaluating initial profile
+  // Initial load: load all schemes with uninitialized profile until user enters a prompt
   useEffect(() => {
-    handleEvaluate('', PRESET_CITIZENS[0].profile, 'All');
+    handleEvaluate('', null, 'All');
   }, []);
 
   // When a document is verified in the Firecracker sandbox
@@ -166,37 +171,58 @@ export default function App() {
             />
 
             {/* Extracted Profile Bar (Calm & Clean) */}
-            {userProfile && (
-              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                <div className="py-3 px-5 rounded-2xl bg-surface-soft/60 border border-white/[0.06] flex flex-wrap items-center justify-between gap-4 text-xs font-mono">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+              <div className="py-3 px-5 rounded-2xl bg-surface-soft/60 border border-white/[0.06] flex flex-wrap items-center justify-between gap-4 text-xs font-mono">
+                {userProfile && userProfile.isPromptProvided ? (
                   <div className="flex items-center space-x-3 flex-wrap gap-y-1">
                     <span className="text-zinc-500 font-medium">Citizen Profile:</span>
-                    <span className="text-white font-medium">
-                      Age {userProfile.age}
+                    {userProfile.age && (
+                      <>
+                        <span className="text-white font-medium">Age {userProfile.age}</span>
+                        <span className="text-zinc-600">•</span>
+                      </>
+                    )}
+                    {userProfile.state && (
+                      <>
+                        <span className="text-zinc-300">{userProfile.state}</span>
+                        <span className="text-zinc-600">•</span>
+                      </>
+                    )}
+                    {userProfile.family_income_annual && (
+                      <>
+                        <span className="text-emerald-400">₹{userProfile.family_income_annual.toLocaleString('en-IN')}/yr</span>
+                        <span className="text-zinc-600">•</span>
+                      </>
+                    )}
+                    {userProfile.occupation && (
+                      <>
+                        <span className="text-blue-300">{userProfile.occupation}</span>
+                        <span className="text-zinc-600">•</span>
+                      </>
+                    )}
+                    <span className="text-zinc-400">{userProfile.category || 'General'}</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center space-x-2 text-zinc-400">
+                    <span className="text-zinc-500 font-medium">Citizen Profile:</span>
+                    <span className="text-zinc-400 italic">
+                      No prompt entered yet — describe yourself in the search box above or choose a preset citizen below
                     </span>
-                    <span className="text-zinc-600">•</span>
-                    <span className="text-zinc-300">{userProfile.state}</span>
-                    <span className="text-zinc-600">•</span>
-                    <span className="text-emerald-400">₹{(userProfile.family_income_annual || 0).toLocaleString('en-IN')}/yr</span>
-                    <span className="text-zinc-600">•</span>
-                    <span className="text-blue-300">{userProfile.occupation}</span>
-                    <span className="text-zinc-600">•</span>
-                    <span className="text-zinc-400">{userProfile.category}</span>
                   </div>
+                )}
 
-                  <div className="flex items-center space-x-4 text-zinc-400">
-                    <span>{schemes.length} matching programs</span>
-                    <button
-                      onClick={() => setActiveTab('sandbox')}
-                      className="text-blue-400 hover:text-blue-300 transition-colors flex items-center space-x-1"
-                    >
-                      <span>Verify documents</span>
-                      <ArrowUpRight className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
+                <div className="flex items-center space-x-4 text-zinc-400">
+                  <span>{schemes.length} matching programs</span>
+                  <button
+                    onClick={() => setActiveTab('sandbox')}
+                    className="text-blue-400 hover:text-blue-300 transition-colors flex items-center space-x-1"
+                  >
+                    <span>Verify documents</span>
+                    <ArrowUpRight className="w-3.5 h-3.5" />
+                  </button>
                 </div>
               </div>
-            )}
+            </div>
 
             {/* Schemes Results Grid */}
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">

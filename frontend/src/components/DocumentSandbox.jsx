@@ -94,11 +94,11 @@ export default function DocumentSandbox({ onDocumentVerified, onDocumentUnverifi
   const [sandboxResult, setSandboxResult] = useState(null);
   const [activeConstraintsModalDoc, setActiveConstraintsModalDoc] = useState(null);
 
-  const handleProcessDocument = async (docType, extraData = {}, fileOverride = null, isTemplateFallback = false) => {
+  const handleProcessDocument = async (docType, extraData = {}, fileOverride = null) => {
     const fileToUpload = fileOverride || selectedFiles[docType];
 
-    // Strictly enforce document upload unless explicit statutory template fallback is clicked
-    if (!fileToUpload && !isTemplateFallback) {
+    // Strictly enforce real file upload - verification is impossible without an uploaded document
+    if (!fileToUpload) {
       const fileInput = document.getElementById(`file-input-${docType}`);
       if (fileInput) fileInput.click();
       setSandboxResult({
@@ -114,36 +114,18 @@ export default function DocumentSandbox({ onDocumentVerified, onDocumentUnverifi
     setSandboxResult(null);
 
     try {
-      let response;
+      const formData = new FormData();
+      formData.append('file', fileToUpload);
+      formData.append('document_type', docType);
+      formData.append('documentType', docType);
+      formData.append('user_id', 'citizen-123');
+      if (extraData?.incomeOverride) formData.append('incomeOverride', extraData.incomeOverride);
+      if (extraData?.applicantName) formData.append('applicantName', extraData.applicantName);
 
-      if (fileToUpload) {
-        const formData = new FormData();
-        formData.append('file', fileToUpload);
-        formData.append('document_type', docType);
-        formData.append('documentType', docType);
-        formData.append('user_id', 'citizen-123');
-        if (extraData?.incomeOverride) formData.append('incomeOverride', extraData.incomeOverride);
-        if (extraData?.applicantName) formData.append('applicantName', extraData.applicantName);
-
-        response = await fetch('/api/upload', {
-          method: 'POST',
-          body: formData
-        });
-      } else {
-        response = await fetch('/api/upload-document', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            documentType: docType,
-            document_type: docType,
-            fileName: `${docType}_statutory_template.pdf`,
-            file_name: `${docType}_statutory_template.pdf`,
-            user_id: 'citizen-123',
-            isTemplate: true,
-            ...extraData
-          })
-        });
-      }
+      const response = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData
+      });
 
       const data = await response.json();
       setSandboxResult(data);
@@ -194,7 +176,7 @@ export default function DocumentSandbox({ onDocumentVerified, onDocumentUnverifi
             <span>Select Document to Sandbox:</span>
             <div className="flex items-center space-x-2">
               <span className="text-[11px] font-mono px-2 py-0.5 rounded-full bg-white/[0.04] text-zinc-400 border border-white/[0.08]">
-                {verifiedDocIds.length} of {SAMPLE_DOCUMENTS.length} verified
+                {SAMPLE_DOCUMENTS.filter(d => verifiedDocIds.includes(d.id) && !!selectedFiles[d.id]).length} of {SAMPLE_DOCUMENTS.length} verified
               </span>
               {verifiedDocIds.length > 0 && (
                 <button
@@ -211,10 +193,10 @@ export default function DocumentSandbox({ onDocumentVerified, onDocumentUnverifi
 
           <div className="space-y-3.5">
             {SAMPLE_DOCUMENTS.map((sample) => {
-              const isVerified = verifiedDocIds.includes(sample.id);
+              const hasFile = !!selectedFiles[sample.id];
+              const isVerified = verifiedDocIds.includes(sample.id) && hasFile;
               const isSelected = selectedDocType === sample.id;
               const isThisProcessing = isProcessing && processingDocId === sample.id;
-              const hasFile = !!selectedFiles[sample.id];
 
               return (
                 <div
@@ -313,21 +295,9 @@ export default function DocumentSandbox({ onDocumentVerified, onDocumentUnverifi
                           </button>
                         </div>
                       ) : (
-                        <div className="flex items-center space-x-1.5 text-[10px] font-mono text-zinc-500">
-                          <span>No file uploaded</span>
-                          <span>•</span>
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setSelectedDocType(sample.id);
-                              handleProcessDocument(sample.id, sample.sampleData, null, true);
-                            }}
-                            className="text-purple-400 hover:text-purple-300 underline"
-                          >
-                            use statutory template
-                          </button>
-                        </div>
+                        <span className="text-[10px] font-mono text-zinc-500">
+                          No file uploaded
+                        </span>
                       )}
                     </div>
                   </div>
@@ -360,7 +330,7 @@ export default function DocumentSandbox({ onDocumentVerified, onDocumentUnverifi
                           setSandboxResult({
                             success: false,
                             error: 'Document Upload Required',
-                            message: `No document file uploaded. Please select a statutory document file (.pdf, .jpg, .png) for "${sample.title}" to verify in the Firecracker MicroVM.`
+                            message: `No document file uploaded. Please select a statutory document file (.pdf, .jpg, .png) for "${sample.title}" before spawning Firecracker MicroVM verification.`
                           });
                           return;
                         }
@@ -369,7 +339,7 @@ export default function DocumentSandbox({ onDocumentVerified, onDocumentUnverifi
                       className={`px-3.5 py-1.5 rounded-lg text-xs font-mono font-medium transition-all duration-200 flex items-center space-x-1.5 shadow-sm ${
                         hasFile
                           ? 'bg-purple-600 hover:bg-purple-500 hover:shadow-[0_0_15px_rgba(168,85,247,0.4)] text-white hover:scale-105 active:scale-95'
-                          : 'bg-zinc-800/90 hover:bg-zinc-700 text-zinc-300 border border-white/[0.08]'
+                          : 'bg-zinc-800/80 hover:bg-zinc-700 text-zinc-300 border border-white/[0.08]'
                       } disabled:opacity-50`}
                     >
                       {isThisProcessing ? (

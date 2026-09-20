@@ -159,7 +159,8 @@ export function runProfileAgent(inputQuery, existingProfile = {}) {
     education: education_level,
     education_level,
     gender,
-    category
+    category,
+    isPromptProvided: Boolean(inputQuery && inputQuery.trim())
   };
 }
 

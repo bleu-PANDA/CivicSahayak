@@ -148,9 +148,34 @@ app.post('/api/evaluate', cedarAuthMiddleware('evaluate', 'EligibilityResult'), 
     const queryStr = typeof query === 'string' ? query.trim() : '';
 
     if (!queryStr && (!profile || typeof profile !== 'object' || Object.keys(profile).length === 0)) {
-      return res.status(400).json({
-        error: 'Invalid request payload',
-        message: 'Query string or profile object must be provided'
+      schemesList = reloadSchemes();
+      return res.json({
+        success: true,
+        schemes: schemesList.map(s => ({
+          ...s,
+          eligibility_score: 100,
+          status: 'ELIGIBLE',
+          missing_documents: s.required_documents || [],
+          why_eligible: 'Browse all government welfare schemes. Enter a prompt to evaluate personalized eligibility.',
+          evaluation: {
+            eligibilityScore: 100,
+            status: 'ELIGIBLE',
+            missingDocuments: s.required_documents || [],
+            criteriaResults: []
+          }
+        })),
+        profile: {
+          age: null,
+          state: null,
+          family_income_annual: null,
+          occupation: null,
+          education_level: null,
+          gender: null,
+          category: null,
+          isPromptProvided: false
+        },
+        recommendation: null,
+        telemetryLogs: []
       });
     }
 
