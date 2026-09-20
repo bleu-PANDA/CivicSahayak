@@ -31,25 +31,29 @@ export default function SchemeCard({ scheme, onSelectScheme, onOpenChecklist }) 
         
         {/* Top Meta Row */}
         <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center space-x-2 text-xs font-mono">
+          <div className="flex items-center space-x-2 text-xs font-mono flex-wrap gap-y-1">
             <span className="px-2 py-0.5 rounded-md bg-white/[0.04] text-zinc-300 border border-white/[0.08]">
-              {scheme.scheme_code}
+              {scheme.scheme_code || scheme.scheme_id || scheme.id}
             </span>
             <span className="text-zinc-500">•</span>
             <span className="text-blue-400/90 font-medium">
               {scheme.category}
             </span>
+            <span className="text-zinc-500">•</span>
+            <span className="text-zinc-400">
+              {scheme.level === 'Central' || scheme.state === 'Central' ? 'Central' : `State: ${scheme.state}`}
+            </span>
           </div>
 
           <div className={`px-2.5 py-0.5 rounded-full text-[11px] font-mono font-medium border ${statusBadgeColor}`}>
-            {isEligible ? 'Eligible' : isPartial ? 'Partial' : 'Ineligible'}
+            {isEligible ? 'Eligible' : isPartial ? 'Partially Eligible' : 'Ineligible'}
           </div>
         </div>
 
         {/* Scheme Title & Description */}
         <div>
           <h3 className="text-base font-semibold text-white group-hover:text-blue-300 transition-colors mb-1.5 leading-snug">
-            {scheme.scheme_name}
+            {scheme.scheme_name || scheme.name || scheme.scheme_code}
           </h3>
           <p className="text-xs text-zinc-400 line-clamp-2 leading-relaxed">
             {scheme.description}
@@ -67,7 +71,7 @@ export default function SchemeCard({ scheme, onSelectScheme, onOpenChecklist }) 
             <div>
               <div className="text-[10px] font-mono text-zinc-500 uppercase">Match Score</div>
               <div className="text-xs font-medium text-zinc-200">
-                {isEligible ? 'High Fit' : isPartial ? 'Borderline' : 'Low Fit'}
+                {isEligible ? 'High Match' : isPartial ? 'Borderline' : 'Criteria Not Met'}
               </div>
             </div>
           </div>
@@ -79,8 +83,8 @@ export default function SchemeCard({ scheme, onSelectScheme, onOpenChecklist }) 
             </div>
             <div className="min-w-0">
               <div className="text-[10px] font-mono text-zinc-500 uppercase">Benefit</div>
-              <div className="text-xs font-medium text-zinc-200 truncate" title={scheme.financial_benefit}>
-                {scheme.financial_benefit}
+              <div className="text-xs font-medium text-zinc-200 truncate" title={scheme.financial_benefit || scheme.benefit || (scheme.benefit_amount ? `₹${scheme.benefit_amount.toLocaleString('en-IN')}` : 'Statutory Grant')}>
+                {scheme.financial_benefit || scheme.benefit || (scheme.benefit_amount ? `₹${scheme.benefit_amount.toLocaleString('en-IN')}` : 'Statutory Grant')}
               </div>
             </div>
           </div>
@@ -89,7 +93,7 @@ export default function SchemeCard({ scheme, onSelectScheme, onOpenChecklist }) 
 
         {/* Key Deterministic Criteria */}
         <div className="flex flex-wrap gap-1.5 pt-1">
-          {evaluation.criteriaResults?.slice(0, 3).map((c, idx) => (
+          {evaluation.criteriaResults?.map((c, idx) => (
             <span
               key={idx}
               className={`inline-flex items-center space-x-1 px-2 py-0.5 rounded text-[10px] font-mono border ${
@@ -97,13 +101,15 @@ export default function SchemeCard({ scheme, onSelectScheme, onOpenChecklist }) 
                   ? 'bg-emerald-950/15 text-emerald-300/90 border-emerald-900/30'
                   : 'bg-rose-950/15 text-rose-300/90 border-rose-900/30'
               }`}
+              title={c.detail}
             >
               {c.passed ? (
                 <CheckCircle2 className="w-2.5 h-2.5 text-emerald-400" />
               ) : (
                 <XCircle className="w-2.5 h-2.5 text-rose-400" />
               )}
-              <span>{c.label}</span>
+              <span>{c.label || c.criterion}:</span>
+              <span className="font-semibold">{c.actual ?? (c.passed ? 'PASS' : 'FAIL')}</span>
             </span>
           ))}
 
@@ -122,7 +128,7 @@ export default function SchemeCard({ scheme, onSelectScheme, onOpenChecklist }) 
           onClick={() => onSelectScheme(scheme)}
           className="flex-1 flex items-center justify-center space-x-1 px-3 py-1.5 rounded-lg bg-white/[0.03] hover:bg-white/[0.07] text-xs font-mono text-zinc-300 hover:text-white border border-white/[0.06] transition-colors"
         >
-          <span>View Details</span>
+          <span>{isEligible ? 'Why am I eligible?' : 'Why ineligible?'}</span>
           <ChevronRight className="w-3.5 h-3.5 text-zinc-400" />
         </button>
 
@@ -136,7 +142,7 @@ export default function SchemeCard({ scheme, onSelectScheme, onOpenChecklist }) 
         </button>
 
         <a
-          href={scheme.official_url}
+          href={scheme.official_url || scheme.application_url || "https://scholarships.gov.in"}
           target="_blank"
           rel="noopener noreferrer"
           className="p-1.5 rounded-lg bg-white/[0.02] hover:bg-white/[0.06] text-zinc-400 hover:text-zinc-200 border border-white/[0.06] transition-colors"

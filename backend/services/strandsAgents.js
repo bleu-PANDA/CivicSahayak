@@ -34,9 +34,14 @@ export function reloadSchemes() {
 export function runProfileAgent(inputQuery, existingProfile = {}) {
   const query = (inputQuery || '').toLowerCase();
 
-  // Extract Age
+  // Extract Age — handles: "25-year-old", "30-yr-old", "25 year old", "25yo",
+  // "I'm 25", "I am 25", "aged 25", "age 25", "age is 25"
   let age = existingProfile.age || 21;
-  const ageMatch = query.match(/(\d{1,2})\s*(?:years?\s*old|yo|yr|age\s*(?:is)?\s*(\d{1,2}))/i) || query.match(/\bage\s*(\d{1,2})\b/i);
+  const ageMatch =
+    query.match(/(\d{1,2})[-\s]*(?:years?[-\s]*old|yo|yr[-\s]*old)/i) ||  // "25-year-old", "25 year old", "25yo", "30-yr-old"
+    query.match(/\bage[d]?\s*(?:is\s*)?(\d{1,2})\b/i) ||                 // "aged 25", "age 25", "age is 25"
+    query.match(/\bi(?:'m|\s+am)\s+(?:a\s+)?(\d{1,2})\b/i) ||            // "I'm 25", "I am 25", "I am a 25"
+    query.match(/\b(\d{1,2})\s*(?:yr|year)s?\b/i);                        // "25 years", "25 yr"
   if (ageMatch) {
     age = parseInt(ageMatch[1] || ageMatch[2], 10);
   }
@@ -44,34 +49,52 @@ export function runProfileAgent(inputQuery, existingProfile = {}) {
   // Extract State
   let state = existingProfile.state || 'Uttar Pradesh';
   const stateKeywords = {
-    'uttar pradesh': 'Uttar Pradesh', 'up': 'Uttar Pradesh',
-    'maharashtra': 'Maharashtra', 'mh': 'Maharashtra', 'mumbai': 'Maharashtra', 'pune': 'Maharashtra',
-    'karnataka': 'Karnataka', 'ka': 'Karnataka', 'bengaluru': 'Karnataka',
-    'bihar': 'Bihar', 'patna': 'Bihar',
-    'rajasthan': 'Rajasthan', 'jaipur': 'Rajasthan',
-    'tamil nadu': 'Tamil Nadu', 'chennai': 'Tamil Nadu',
-    'telangana': 'Telangana', 'hyderabad': 'Telangana',
-    'kerala': 'Kerala',
-    'madhya pradesh': 'Madhya Pradesh', 'mp': 'Madhya Pradesh',
-    'delhi': 'Delhi', 'gujarat': 'Gujarat', 'west bengal': 'West Bengal'
+    'uttarakhand': 'Uttarakhand', 'uttrakhand': 'Uttarakhand', 'uk': 'Uttarakhand', 'dehradun': 'Uttarakhand', 'haridwar': 'Uttarakhand', 'rishikesh': 'Uttarakhand', 'nainital': 'Uttarakhand',
+    'uttar pradesh': 'Uttar Pradesh', 'up': 'Uttar Pradesh', 'lucknow': 'Uttar Pradesh', 'kanpur': 'Uttar Pradesh', 'varanasi': 'Uttar Pradesh', 'noida': 'Uttar Pradesh', 'prayagraj': 'Uttar Pradesh',
+    'maharashtra': 'Maharashtra', 'mh': 'Maharashtra', 'mumbai': 'Maharashtra', 'pune': 'Maharashtra', 'nagpur': 'Maharashtra',
+    'karnataka': 'Karnataka', 'ka': 'Karnataka', 'bengaluru': 'Karnataka', 'bangalore': 'Karnataka', 'mysuru': 'Karnataka',
+    'bihar': 'Bihar', 'patna': 'Bihar', 'gaya': 'Bihar', 'muzaffarpur': 'Bihar',
+    'rajasthan': 'Rajasthan', 'jaipur': 'Rajasthan', 'jodhpur': 'Rajasthan', 'udaipur': 'Rajasthan',
+    'tamil nadu': 'Tamil Nadu', 'tn': 'Tamil Nadu', 'chennai': 'Tamil Nadu', 'coimbatore': 'Tamil Nadu',
+    'telangana': 'Telangana', 'ts': 'Telangana', 'hyderabad': 'Telangana',
+    'andhra pradesh': 'Andhra Pradesh', 'ap': 'Andhra Pradesh', 'visakhapatnam': 'Andhra Pradesh', 'vijayawada': 'Andhra Pradesh',
+    'kerala': 'Kerala', 'kl': 'Kerala', 'kochi': 'Kerala', 'thiruvananthapuram': 'Kerala',
+    'madhya pradesh': 'Madhya Pradesh', 'mp': 'Madhya Pradesh', 'bhopal': 'Madhya Pradesh', 'indore': 'Madhya Pradesh',
+    'delhi': 'Delhi', 'new delhi': 'Delhi', 'ncr': 'Delhi',
+    'gujarat': 'Gujarat', 'gj': 'Gujarat', 'ahmedabad': 'Gujarat', 'surat': 'Gujarat',
+    'west bengal': 'West Bengal', 'wb': 'West Bengal', 'kolkata': 'West Bengal',
+    'odisha': 'Odisha', 'orissa': 'Odisha', 'bhubaneswar': 'Odisha',
+    'punjab': 'Punjab', 'pb': 'Punjab', 'amritsar': 'Punjab',
+    'haryana': 'Haryana', 'hr': 'Haryana', 'gurugram': 'Haryana', 'gurgaon': 'Haryana',
+    'assam': 'Assam', 'guwahati': 'Assam',
+    'jharkhand': 'Jharkhand', 'ranchi': 'Jharkhand',
+    'chhattisgarh': 'Chhattisgarh', 'raipur': 'Chhattisgarh',
+    'himachal pradesh': 'Himachal Pradesh', 'himachal': 'Himachal Pradesh', 'hp': 'Himachal Pradesh', 'shimla': 'Himachal Pradesh',
+    'goa': 'Goa', 'panaji': 'Goa',
+    'jammu and kashmir': 'Jammu and Kashmir', 'j&k': 'Jammu and Kashmir', 'srinagar': 'Jammu and Kashmir', 'jammu': 'Jammu and Kashmir',
+    'ladakh': 'Ladakh', 'leh': 'Ladakh'
   };
 
-  for (const [key, val] of Object.entries(stateKeywords)) {
+  // Sort keys by length descending to match multi-word names first
+  const sortedStateKeys = Object.keys(stateKeywords).sort((a, b) => b.length - a.length);
+  for (const key of sortedStateKeys) {
     if (new RegExp(`\\b${key}\\b`, 'i').test(query)) {
-      state = val;
+      state = stateKeywords[key];
       break;
     }
   }
 
-  // Extract Annual Income
+  // Extract Annual Income — handles: "income 6 lakh", "family income 6 lakh",
+  // "salary 6 lakh", "6 lakh income", "6 lakh per year", standalone "6 lakh", "₹600000"
   let family_income_annual = existingProfile.family_income_annual !== undefined ? existingProfile.family_income_annual : 250000;
-  const lakhMatch = query.match(/(?:income|earning|earns?|family\s*income).*?(?:₹|rs\.?|inr)?\s*([0-9.]+)\s*(?:lakh|lacs?|l)/i) ||
-                    query.match(/([0-9.]+)\s*(?:lakh|lacs?|l)\s*(?:per\s*year|\/yr|annual|income)/i);
+  const lakhMatch =
+    query.match(/(?:income|earning|earns?|family\s*income|salary|wages?).*?(?:₹|rs\.?|inr)?\s*([0-9.]+)\s*(?:lakh|lacs?|l)\b/i) ||
+    query.match(/([0-9.]+)\s*(?:lakh|lacs?|l)\s*(?:per\s*year|\/yr|annual|income|salary)?/i);
   if (lakhMatch) {
     family_income_annual = Math.round(parseFloat(lakhMatch[1]) * 100000);
   } else {
-    const rawNumberMatch = query.match(/(?:income|earning|earns?).*?(?:₹|rs\.?|inr)?\s*([0-9,]{5,8})/i) ||
-                           query.match(/\b([0-9]{5,7})\b/);
+    const rawNumberMatch = query.match(/(?:income|earning|earns?|salary|wages?).*?(?:₹|rs\.?|inr)?\s*([0-9,]{5,8})/i) ||
+                           query.match(/(?:₹|rs\.?|inr)\s*([0-9,]{5,8})/i);
     if (rawNumberMatch) {
       family_income_annual = parseInt(rawNumberMatch[1].replace(/,/g, ''), 10);
     }
@@ -165,15 +188,28 @@ export function runSchemeAgent(profile, userQuery = '', filterCategory = 'All') 
       return null;
     }
 
+    const canonicalState = (s) => {
+      const l = (s || '').trim().toLowerCase();
+      if (l === 'up' || l === 'uttar pradesh') return 'uttar pradesh';
+      if (l === 'uk' || l === 'uttarakhand' || l === 'uttrakhand') return 'uttarakhand';
+      if (l === 'mh' || l === 'maharashtra') return 'maharashtra';
+      if (l === 'ka' || l === 'karnataka') return 'karnataka';
+      if (l === 'br' || l === 'bihar') return 'bihar';
+      if (l === 'rj' || l === 'rajasthan') return 'rajasthan';
+      if (l === 'dl' || l === 'delhi') return 'delhi';
+      if (l === 'mp' || l === 'madhya pradesh') return 'madhya pradesh';
+      return l;
+    };
+
     // State match
     const schemeState = (scheme.state || '').toLowerCase();
     const userState = (profile.state || '').toLowerCase();
     if (schemeState === 'central' || schemeState === 'all india') {
-      relevanceScore += 20;
-    } else if (schemeState === userState || (schemeState === 'up' && userState.includes('uttar pradesh')) || (schemeState === 'mh' && userState.includes('maharashtra')) || (schemeState === 'ka' && userState.includes('karnataka'))) {
-      relevanceScore += 45;
+      relevanceScore += 25;
+    } else if (canonicalState(schemeState) === canonicalState(userState)) {
+      relevanceScore += 50;
     } else {
-      relevanceScore -= 35;
+      relevanceScore -= 40;
     }
 
     // Keyword & BM25 text match
@@ -184,8 +220,8 @@ export function runSchemeAgent(profile, userQuery = '', filterCategory = 'All') 
       }
     }
 
-    // Direct match for UP scholarship query
-    if ((scheme.scheme_id === 'UP_SCHOLARSHIP_2024' || scheme.scheme_id === 'UP_SCHOLARSHIP') && (userState.includes('up') || userState.includes('uttar pradesh'))) {
+    // Direct match for UP scholarship query ONLY when user domicile is UP
+    if ((scheme.scheme_id === 'UP_SCHOLARSHIP_2024' || scheme.scheme_id === 'UP_SCHOLARSHIP') && canonicalState(userState) === 'uttar pradesh') {
       relevanceScore += 50;
     }
 
@@ -216,11 +252,15 @@ export function runEligibilityAgent(schemes, profile, verifiedDocIds = []) {
 export function runEvidenceAgent(evaluatedSchemes, profile) {
   return evaluatedSchemes.map(item => {
     const { evaluation, statutory_evidence, eligibility_text, income_ceiling, name, scheme_name } = item;
-    const isEligible = evaluation.status === 'ELIGIBLE' || evaluation.status === 'PARTIALLY_ELIGIBLE';
+    const isEligible = evaluation.status === 'ELIGIBLE';
+    const isPartial = evaluation.status === 'PARTIALLY_ELIGIBLE';
     const sName = name || scheme_name || item.scheme_id;
 
     let whyEligible = '';
     let whyIneligible = '';
+
+    const failedCriteria = (evaluation.criteriaResults || []).filter(c => !c.passed);
+    const failureReasons = failedCriteria.map(f => f.detail).join('; ');
 
     if (isEligible) {
       whyEligible = `You meet the statutory qualifying criteria for ${sName} with an eligibility score of ${evaluation.eligibilityScore}%. ` +
@@ -229,21 +269,22 @@ export function runEvidenceAgent(evaluatedSchemes, profile) {
         (evaluation.missingDocuments.length > 0
           ? `Note: Missing ${evaluation.missingDocuments.join(', ')} for final application readiness.`
           : `All mandatory statutory documents are verified and ready.`);
-    }
-
-    if (!isEligible) {
-      const failedCriteria = evaluation.criteriaResults.filter(c => !c.passed);
-      const reasons = failedCriteria.map(f => f.detail).join('; ');
-      whyIneligible = `You do not currently satisfy statutory eligibility requirements: ${reasons}.`;
+    } else if (isPartial) {
+      whyEligible = `You partially satisfy criteria for ${sName} with an eligibility score of ${evaluation.eligibilityScore}%. ` +
+        (failureReasons ? `Boundary advisory: ${failureReasons}. ` : '') +
+        (evaluation.missingDocuments.length > 0 ? `Missing ${evaluation.missingDocuments.length} required documents.` : '');
+      whyIneligible = `Borderline eligibility: ${failureReasons || 'Requires supplementary verification'}.`;
+    } else {
+      whyIneligible = `You do not currently satisfy statutory eligibility requirements for ${sName}: ${failureReasons || 'Disqualified by statutory criteria'}.`;
     }
 
     return {
       ...item,
-      why_eligible: whyEligible || whyIneligible,
+      why_eligible: isEligible || isPartial ? whyEligible : whyIneligible,
       evidenceExplanation: {
         statutoryCitation: eligibility_text || statutory_evidence,
-        whyEligible,
-        whyIneligible,
+        whyEligible: whyEligible || whyIneligible,
+        whyIneligible: whyIneligible || whyEligible,
         retrievedFrom: "OpenSearch Index: government_schemes / Field: eligibility_text",
         verifiedByCedar: true
       }
@@ -378,6 +419,21 @@ export function runOrchestratorPipeline({ query, user_id = 'citizen-123', profil
       evidenceExplanation: s.evidenceExplanation,
       required_documents: (s.required_documents || []).map(d => typeof d === 'string' ? { id: d, name: d.replace(/_/g, ' ') } : d)
     };
+  });
+
+  // Sort schemes strictly according to Corretto Hard Boundary Match:
+  // 1. ELIGIBLE first, then PARTIALLY_ELIGIBLE, then NOT_ELIGIBLE
+  // 2. Higher eligibility_score first
+  // 3. Higher benefit_amount as tiebreaker
+  formattedSchemes.sort((a, b) => {
+    const statusWeight = { 'ELIGIBLE': 3, 'PARTIALLY_ELIGIBLE': 2, 'NOT_ELIGIBLE': 1 };
+    const weightA = statusWeight[a.status] || 0;
+    const weightB = statusWeight[b.status] || 0;
+    if (weightA !== weightB) return weightB - weightA;
+    if (b.eligibility_score !== a.eligibility_score) {
+      return b.eligibility_score - a.eligibility_score;
+    }
+    return (b.benefit_amount || 0) - (a.benefit_amount || 0);
   });
 
   return {

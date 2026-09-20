@@ -2,22 +2,38 @@ import React, { useState, useEffect } from 'react';
 import { FileCheck, ExternalLink, CheckSquare, Square, Copy, Check, Clock, AlertCircle, Printer } from 'lucide-react';
 
 export default function ApplicationChecklist({ selectedScheme, allSchemes = [], verifiedDocIds = [] }) {
-  const [activeSchemeId, setActiveSchemeId] = useState(selectedScheme?.id || 'nsp-mcm');
+  const getSchemeId = (s) => s?.id || s?.scheme_id || s?.scheme_code || 'UP_SCHOLARSHIP_2024';
+  const [activeSchemeId, setActiveSchemeId] = useState(getSchemeId(selectedScheme));
   const [checklistData, setChecklistData] = useState(null);
   const [checkedItems, setCheckedItems] = useState({});
   const [copied, setCopied] = useState(false);
 
   // Switch when selectedScheme prop changes
   useEffect(() => {
-    if (selectedScheme?.id) {
-      setActiveSchemeId(selectedScheme.id);
+    if (selectedScheme) {
+      setActiveSchemeId(getSchemeId(selectedScheme));
     }
   }, [selectedScheme]);
 
   useEffect(() => {
-    fetch(`/api/checklist/${activeSchemeId}`)
+    if (!activeSchemeId) return;
+    fetch(`/api/checklist/${encodeURIComponent(activeSchemeId)}`)
       .then(res => res.json())
-      .then(data => {
+      .then(raw => {
+        // Normalize fields for both camelCase and snake_case
+        const data = {
+          schemeName: raw.schemeName || raw.scheme_name || raw.name || 'Government Scheme',
+          schemeId: raw.schemeId || raw.scheme_id || raw.scheme_code || activeSchemeId,
+          officialPortalUrl: raw.officialPortalUrl || raw.official_url || raw.application_url || 'https://scholarships.gov.in',
+          estimatedProcessingDays: raw.estimatedProcessingDays || raw.estimated_processing_days || '30-45 days',
+          applicationFee: raw.applicationFee || raw.application_fee || '₹0 (Free Government Portal)',
+          requiredDocuments: (raw.requiredDocuments || raw.required_documents || []).map(d => typeof d === 'string' ? { id: d, name: d.replace(/_/g, ' ').toUpperCase(), essential: true } : d),
+          steps: (raw.steps || []).map((s, idx) => ({
+            stepNumber: s.stepNumber || s.step_number || (idx + 1),
+            title: s.title || `Step ${idx + 1}`,
+            description: s.description || ''
+          }))
+        };
         setChecklistData(data);
         // Pre-check verified documents
         const initialChecked = {};
@@ -50,7 +66,7 @@ export default function ApplicationChecklist({ selectedScheme, allSchemes = [], 
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const activeScheme = allSchemes.find(s => s.id === activeSchemeId) || selectedScheme;
+  const activeScheme = allSchemes.find(s => (s.id === activeSchemeId || s.scheme_id === activeSchemeId || s.scheme_code === activeSchemeId)) || selectedScheme;
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-10">
@@ -96,19 +112,22 @@ export default function ApplicationChecklist({ selectedScheme, allSchemes = [], 
             Switch Target Scheme:
           </div>
           <div className="flex items-center space-x-2 overflow-x-auto pb-2 no-scrollbar">
-            {allSchemes.slice(0, 8).map((s) => (
-              <button
-                key={s.id}
-                onClick={() => setActiveSchemeId(s.id)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-mono whitespace-nowrap transition-all ${
-                  activeSchemeId === s.id
-                    ? 'bg-emerald-600/20 text-emerald-300 border border-emerald-500/40 font-bold'
-                    : 'bg-surface-soft/60 text-zinc-400 border border-white/[0.06] hover:text-zinc-200'
-                }`}
-              >
-                {s.scheme_code}
-              </button>
-            ))}
+            {allSchemes.slice(0, 8).map((s, idx) => {
+              const sid = s.id || s.scheme_id || s.scheme_code || `scheme-${idx}`;
+              return (
+                <button
+                  key={sid}
+                  onClick={() => setActiveSchemeId(sid)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-mono whitespace-nowrap transition-all ${
+                    activeSchemeId === sid
+                      ? 'bg-emerald-600/20 text-emerald-300 border border-emerald-500/40 font-bold'
+                      : 'bg-surface-soft/60 text-zinc-400 border border-white/[0.06] hover:text-zinc-200'
+                  }`}
+                >
+                  {s.scheme_code || s.scheme_id || s.name || s.scheme_name}
+                </button>
+              );
+            })}
           </div>
         </div>
       )}
