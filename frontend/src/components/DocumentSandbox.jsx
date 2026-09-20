@@ -86,7 +86,7 @@ export const SAMPLE_DOCUMENTS = [
   }
 ];
 
-export default function DocumentSandbox({ onDocumentVerified, verifiedDocIds = [] }) {
+export default function DocumentSandbox({ onDocumentVerified, onDocumentUnverified, onResetAllVerifications, verifiedDocIds = [] }) {
   const [selectedDocType, setSelectedDocType] = useState('income_certificate');
   const [selectedFiles, setSelectedFiles] = useState({});
   const [isProcessing, setIsProcessing] = useState(false);
@@ -94,13 +94,26 @@ export default function DocumentSandbox({ onDocumentVerified, verifiedDocIds = [
   const [sandboxResult, setSandboxResult] = useState(null);
   const [activeConstraintsModalDoc, setActiveConstraintsModalDoc] = useState(null);
 
-  const handleProcessDocument = async (docType, extraData = {}, fileOverride = null) => {
+  const handleProcessDocument = async (docType, extraData = {}, fileOverride = null, isTemplateFallback = false) => {
+    const fileToUpload = fileOverride || selectedFiles[docType];
+
+    // Strictly enforce document upload unless explicit statutory template fallback is clicked
+    if (!fileToUpload && !isTemplateFallback) {
+      const fileInput = document.getElementById(`file-input-${docType}`);
+      if (fileInput) fileInput.click();
+      setSandboxResult({
+        success: false,
+        error: 'Document Upload Required',
+        message: `No document file uploaded. Please select a statutory document file (.pdf, .jpg, .png) first to verify in the Firecracker MicroVM.`
+      });
+      return;
+    }
+
     setIsProcessing(true);
     setProcessingDocId(docType);
     setSandboxResult(null);
 
     try {
-      const fileToUpload = fileOverride || selectedFiles[docType];
       let response;
 
       if (fileToUpload) {
@@ -123,9 +136,10 @@ export default function DocumentSandbox({ onDocumentVerified, verifiedDocIds = [
           body: JSON.stringify({
             documentType: docType,
             document_type: docType,
-            fileName: `${docType}_statutory_verified.pdf`,
-            file_name: `${docType}_statutory_verified.pdf`,
+            fileName: `${docType}_statutory_template.pdf`,
+            file_name: `${docType}_statutory_template.pdf`,
             user_id: 'citizen-123',
+            isTemplate: true,
             ...extraData
           })
         });
@@ -178,9 +192,21 @@ export default function DocumentSandbox({ onDocumentVerified, verifiedDocIds = [
         <div className="lg:col-span-6 space-y-4">
           <div className="text-xs font-mono text-zinc-400 flex items-center justify-between">
             <span>Select Document to Sandbox:</span>
-            <span className="text-[11px] font-mono px-2 py-0.5 rounded-full bg-white/[0.04] text-zinc-400 border border-white/[0.08]">
-              {verifiedDocIds.length} of {SAMPLE_DOCUMENTS.length} verified
-            </span>
+            <div className="flex items-center space-x-2">
+              <span className="text-[11px] font-mono px-2 py-0.5 rounded-full bg-white/[0.04] text-zinc-400 border border-white/[0.08]">
+                {verifiedDocIds.length} of {SAMPLE_DOCUMENTS.length} verified
+              </span>
+              {verifiedDocIds.length > 0 && (
+                <button
+                  type="button"
+                  onClick={onResetAllVerifications}
+                  className="text-[11px] font-mono px-2 py-0.5 rounded-md bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 transition-colors"
+                  title="Reset all verified documents"
+                >
+                  Reset All
+                </button>
+              )}
+            </div>
           </div>
 
           <div className="space-y-3.5">
@@ -208,10 +234,25 @@ export default function DocumentSandbox({ onDocumentVerified, verifiedDocIds = [
                           {sample.title}
                         </span>
                         {isVerified ? (
-                          <span className="inline-flex items-center space-x-1 px-1.5 py-0.5 rounded text-[10px] font-mono bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 font-medium">
-                            <CheckCircle2 className="w-2.5 h-2.5" />
-                            <span>Verified ✓</span>
-                          </span>
+                          <div className="flex items-center space-x-1.5">
+                            <span className="inline-flex items-center space-x-1 px-1.5 py-0.5 rounded text-[10px] font-mono bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 font-medium">
+                              <CheckCircle2 className="w-2.5 h-2.5" />
+                              <span>Verified ✓</span>
+                            </span>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (typeof onDocumentUnverified === 'function') {
+                                  onDocumentUnverified(sample.id);
+                                }
+                              }}
+                              className="text-[10px] font-mono text-zinc-500 hover:text-red-400 transition-colors underline"
+                              title="Reset verification for this document"
+                            >
+                              Reset
+                            </button>
+                          </div>
                         ) : (
                           <span className="inline-flex items-center space-x-1 px-1.5 py-0.5 rounded text-[10px] font-mono bg-zinc-800/80 text-zinc-400 border border-white/[0.06]">
                             <span>Pending Verification</span>
@@ -261,17 +302,32 @@ export default function DocumentSandbox({ onDocumentVerified, verifiedDocIds = [
                                 delete copy[sample.id];
                                 return copy;
                               });
+                              if (typeof onDocumentUnverified === 'function') {
+                                onDocumentUnverified(sample.id);
+                              }
                             }}
                             className="text-zinc-500 hover:text-zinc-300 ml-1"
-                            title="Remove file"
+                            title="Remove file and reset verification"
                           >
                             <X className="w-3 h-3" />
                           </button>
                         </div>
                       ) : (
-                        <span className="text-[10px] font-mono text-zinc-500">
-                          or official statutory template
-                        </span>
+                        <div className="flex items-center space-x-1.5 text-[10px] font-mono text-zinc-500">
+                          <span>No file uploaded</span>
+                          <span>•</span>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedDocType(sample.id);
+                              handleProcessDocument(sample.id, sample.sampleData, null, true);
+                            }}
+                            className="text-purple-400 hover:text-purple-300 underline"
+                          >
+                            use statutory template
+                          </button>
+                        </div>
                       )}
                     </div>
                   </div>
@@ -299,19 +355,37 @@ export default function DocumentSandbox({ onDocumentVerified, verifiedDocIds = [
                       onClick={(e) => {
                         e.stopPropagation();
                         setSelectedDocType(sample.id);
+                        if (!selectedFiles[sample.id]) {
+                          document.getElementById(`file-input-${sample.id}`)?.click();
+                          setSandboxResult({
+                            success: false,
+                            error: 'Document Upload Required',
+                            message: `No document file uploaded. Please select a statutory document file (.pdf, .jpg, .png) for "${sample.title}" to verify in the Firecracker MicroVM.`
+                          });
+                          return;
+                        }
                         handleProcessDocument(sample.id, sample.sampleData, selectedFiles[sample.id]);
                       }}
-                      className="px-3.5 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-500 hover:shadow-[0_0_15px_rgba(168,85,247,0.4)] text-white text-xs font-mono font-medium transition-all duration-200 hover:scale-105 active:scale-95 disabled:opacity-50 flex items-center space-x-1.5 shadow-sm"
+                      className={`px-3.5 py-1.5 rounded-lg text-xs font-mono font-medium transition-all duration-200 flex items-center space-x-1.5 shadow-sm ${
+                        hasFile
+                          ? 'bg-purple-600 hover:bg-purple-500 hover:shadow-[0_0_15px_rgba(168,85,247,0.4)] text-white hover:scale-105 active:scale-95'
+                          : 'bg-zinc-800/90 hover:bg-zinc-700 text-zinc-300 border border-white/[0.08]'
+                      } disabled:opacity-50`}
                     >
                       {isThisProcessing ? (
                         <>
                           <RefreshCw className="w-3 h-3 animate-spin" />
                           <span>Booting VM...</span>
                         </>
-                      ) : (
+                      ) : hasFile ? (
                         <>
                           <Cpu className="w-3 h-3" />
                           <span>Spawn MicroVM</span>
+                        </>
+                      ) : (
+                        <>
+                          <Upload className="w-3 h-3 text-purple-400" />
+                          <span>Upload & Verify</span>
                         </>
                       )}
                     </button>

@@ -328,13 +328,13 @@ app.post('/api/checklist', (req, res) => {
       return {
         id: d,
         name: d.replace(/_/g, ' ').toUpperCase(),
-        status: d === 'income_certificate' ? 'VERIFIED' : 'PENDING',
+        status: 'PENDING',
         essential: true
       };
     }
     return {
       ...d,
-      status: d.id === 'income_certificate' ? 'VERIFIED' : 'PENDING'
+      status: 'PENDING'
     };
   });
 

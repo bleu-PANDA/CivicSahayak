@@ -95,6 +95,22 @@ export default function App() {
     }
   };
 
+  // When verification is removed or reset
+  const handleDocumentUnverified = (docType) => {
+    if (verifiedDocIds.includes(docType)) {
+      const updated = verifiedDocIds.filter(id => id !== docType);
+      setVerifiedDocIds(updated);
+      handleEvaluate(currentQuery, userProfile, selectedCategory);
+      showToast(`Reset verification for ${docType}.`);
+    }
+  };
+
+  const handleResetAllVerifications = () => {
+    setVerifiedDocIds([]);
+    handleEvaluate(currentQuery, userProfile, selectedCategory);
+    showToast('Reset all document verifications.');
+  };
+
   const handleOpenChecklist = (scheme) => {
     setTargetChecklistScheme(scheme);
     setActiveTab('checklist');
@@ -227,6 +243,8 @@ export default function App() {
         {activeTab === 'sandbox' && (
           <DocumentSandbox
             onDocumentVerified={handleDocumentVerified}
+            onDocumentUnverified={handleDocumentUnverified}
+            onResetAllVerifications={handleResetAllVerifications}
             verifiedDocIds={verifiedDocIds}
           />
         )}
