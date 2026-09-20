@@ -19,22 +19,22 @@ export default function SchemeBundler({ currentBundle, onSelectScheme }) {
   const activeCuratedBundle = curatedBundles.find(b => b.id === selectedBundleId) || curatedBundles[0];
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-10">
       
       {/* Top Banner */}
-      <div className="p-6 rounded-2xl bg-[#090C16] border border-white/[0.1] shadow-xl">
-        <div className="flex items-center space-x-2 text-xs font-mono text-cyan-400 mb-1">
-          <Layers className="w-4 h-4" />
-          <span>Recommendation Agent • Synergistic Bundle Matrix</span>
+      <div className="p-6 rounded-2xl bg-[#090C16] border border-white/[0.08] shadow-lg">
+        <div className="flex items-center space-x-2 text-xs font-mono text-cyan-400 mb-2">
+          <Layers className="w-3.5 h-3.5" />
+          <span>Synergistic Scheme Bundles</span>
         </div>
         <h2 className="text-xl sm:text-2xl font-bold text-white tracking-tight">
-          Multi-Scheme Synergistic Combination Engine
+          Stack Complementary Benefits
         </h2>
-        <p className="text-xs sm:text-sm text-zinc-400 max-w-3xl mt-1 leading-relaxed">
-          Government schemes are often designed to be complementary rather than mutually exclusive.
-          CivicOS evaluates statutory non-conflict rules to bundle tuition waivers, campus maintenance, and family health assurance for maximum financial benefit.
+        <p className="text-xs sm:text-sm text-zinc-400 max-w-2xl mt-1.5 leading-relaxed">
+          Combine tuition waivers, healthcare insurance, and monthly maintenance stipends without legal conflict.
         </p>
       </div>
+
 
       {/* Dynamic Bundle from Current Query if Available */}
       {currentBundle && currentBundle.schemes?.length > 0 && (

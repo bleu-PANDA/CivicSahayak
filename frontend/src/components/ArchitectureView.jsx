@@ -73,24 +73,24 @@ export default function ArchitectureView() {
   const selectedComp = ARCHITECTURE_COMPONENTS.find(c => c.id === selectedCompId) || ARCHITECTURE_COMPONENTS[0];
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-10">
       
-      {/* Top Banner */}
-      <div className="p-6 rounded-2xl bg-[#090C16] border border-white/[0.1] shadow-xl">
-        <div className="flex items-center space-x-2 text-xs font-mono text-indigo-400 mb-1">
-          <Database className="w-4 h-4" />
-          <span>Sovereign AI Infrastructure • Zero AWS Cost Development</span>
+      {/* Top Banner (Calm & Focused) */}
+      <div className="p-6 rounded-2xl bg-[#090C16] border border-white/[0.08] shadow-lg">
+        <div className="flex items-center space-x-2 text-xs font-mono text-indigo-400 mb-2">
+          <Database className="w-3.5 h-3.5" />
+          <span>System Blueprint</span>
         </div>
         <h2 className="text-xl sm:text-2xl font-bold text-white tracking-tight">
-          Production-Ready Open-Source System Architecture
+          Sovereign Open-Source Architecture
         </h2>
-        <p className="text-xs sm:text-sm text-zinc-400 max-w-3xl mt-1 leading-relaxed">
-          Developed locally with zero AWS cloud costs, but designed with the exact open-source components powering production AWS environments (Finch, Corretto, Cedar, Firecracker, OpenSearch).
+        <p className="text-xs sm:text-sm text-zinc-400 max-w-2xl mt-1.5 leading-relaxed">
+          Built with open-source tools matching enterprise AWS production services: Finch, Corretto 21, Cedar PBAC, Firecracker, and OpenSearch.
         </p>
       </div>
 
       {/* Visual Component Stack Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
         {ARCHITECTURE_COMPONENTS.map((comp) => {
           const isSelected = selectedCompId === comp.id;
           return (
