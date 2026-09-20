@@ -21,7 +21,7 @@ export default function App() {
   const [schemes, setSchemes] = useState([]);
   const [recommendedBundle, setRecommendedBundle] = useState(null);
   const [telemetryLogs, setTelemetryLogs] = useState([]);
-  const [verifiedDocIds, setVerifiedDocIds] = useState(['income_certificate']);
+  const [verifiedDocIds, setVerifiedDocIds] = useState([]);
 
   // Modal & Target States
   const [selectedSchemeForModal, setSelectedSchemeForModal] = useState(null);
