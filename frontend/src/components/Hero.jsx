@@ -54,19 +54,78 @@ export const CATEGORIES = [
   'Welfare'
 ];
 
+/**
+ * Intelligent regex category detection based on citizen query intent
+ */
+export function detectCategoryFromQuery(text) {
+  if (!text || typeof text !== 'string') return null;
+  const t = text.toLowerCase();
+
+  // 1. Agriculture / Farming / Land / Crops
+  if (/\b(farmer|farmers|farming|farm|farms|crop|crops|kisan|agriculture|agricultural|cultivator|cultivators|harvest|tractor|seed|seeds|fertilizer|fertilizers|krishi|land|khatauni|pashu|dairy|agri|horticulture|soil|irrigation|paddy|wheat|rythu)\b/i.test(t)) {
+    return 'Agriculture';
+  }
+
+  // 2. Education / Students / College / Scholarships
+  if (/\b(student|students|scholarship|scholarships|college|university|school|degree|btech|undergraduate|postgraduate|tuition|study|studying|hostel|matric|fellowship|exam|books|ug|pg|phd|education|educational|admission|coaching)\b/i.test(t)) {
+    return 'Education';
+  }
+
+  // 3. Healthcare / Medical / Hospital
+  if (/\b(health|healthcare|hospital|hospitals|medical|doctor|treatment|medicine|medicines|ayushman|disease|illness|clinic|surgery|patient|mediclaim|arogya|swasthya|sick|infirm|disability|maternity)\b/i.test(t)) {
+    return 'Healthcare';
+  }
+
+  // 4. Housing / Shelter / Awas
+  if (/\b(house|housing|pucca|awas|home|roof|slum|shelter|solar rooftop|pmay|flat|gramin awas|urban housing|residential|homeless)\b/i.test(t)) {
+    return 'Housing';
+  }
+
+  // 5. Enterprise / Livelihood / Small Business / Street Vendors / Artisans
+  if (/\b(vendor|street vendor|hawker|stall|shop|business|artisan|artisans|craft|vishwakarma|mudra|loan|credit|startup|msme|svanidhi|carpenter|blacksmith|weaver|tailor|entrepreneur|micro-credit|working capital|employment|job|self-employed|livelihood)\b/i.test(t)) {
+    return 'Enterprise';
+  }
+
+  // 6. Welfare / Pension / Social Security / Women / Minority
+  if (/\b(pension|elderly|senior citizen|widow|divyang|handicapped|ration|bpl|antodaya|orphan|destitute|social security|ladli|matru|women|woman|girl child|sukanya|minority|welfare)\b/i.test(t)) {
+    return 'Welfare';
+  }
+
+  return null;
+}
+
 export default function Hero({ onEvaluate, isLoading, currentQuery, setCurrentQuery, selectedCategory, setSelectedCategory }) {
-  const [localInput, setLocalInput] = useState(currentQuery || "I'm a 21-year-old student from Uttar Pradesh. My family income is ₹2.5 lakh and I want financial assistance for higher education.");
+  const [localInput, setLocalInput] = useState(currentQuery || '');
+
+  // Keep localInput in sync if currentQuery changes externally (e.g. from preset/example selection)
+  React.useEffect(() => {
+    setLocalInput(currentQuery || '');
+  }, [currentQuery]);
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!localInput.trim()) return;
-    onEvaluate(localInput, null, selectedCategory);
+    const query = localInput.trim();
+    if (!query) return;
+
+    // Detect category from query automatically if present
+    const detectedCategory = detectCategoryFromQuery(query);
+    const finalCategory = detectedCategory || selectedCategory || 'All';
+    if (detectedCategory) {
+      setSelectedCategory(detectedCategory);
+    }
+    setCurrentQuery(query);
+    onEvaluate(query, null, finalCategory);
   };
 
   const handleSelectPreset = (preset) => {
     setLocalInput(preset.query);
     setCurrentQuery(preset.query);
-    onEvaluate(preset.query, preset.profile, selectedCategory);
+    let cat = preset.tag;
+    if (cat === 'Livelihood') cat = 'Enterprise';
+    if (cat === 'Scholarship') cat = 'Education';
+    const detected = detectCategoryFromQuery(preset.query) || cat || 'All';
+    setSelectedCategory(detected);
+    onEvaluate(preset.query, preset.profile, detected);
   };
 
   return (
@@ -103,10 +162,32 @@ export default function Hero({ onEvaluate, isLoading, currentQuery, setCurrentQu
                 <input
                   type="text"
                   value={localInput}
-                  onChange={(e) => setLocalInput(e.target.value)}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setLocalInput(val);
+                    setCurrentQuery(val);
+                    // Dynamically switch category pill if category keywords are detected while typing
+                    const detected = detectCategoryFromQuery(val);
+                    if (detected && detected !== selectedCategory) {
+                      setSelectedCategory(detected);
+                    }
+                  }}
                   placeholder="Tell us about yourself (e.g., student from UP, family income 2.5 lakh...)"
                   className="w-full bg-transparent text-sm sm:text-base text-white placeholder-zinc-500 focus:outline-none"
                 />
+                {localInput && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLocalInput('');
+                      setCurrentQuery('');
+                    }}
+                    className="text-zinc-500 hover:text-zinc-300 px-1 text-xs transition-colors"
+                    title="Clear search"
+                  >
+                    ✕
+                  </button>
+                )}
               </div>
               <button
                 type="submit"
@@ -127,6 +208,30 @@ export default function Hero({ onEvaluate, isLoading, currentQuery, setCurrentQu
               </button>
             </div>
           </form>
+
+          {/* Example Prompt Reference Below Search Box */}
+          <div className="flex items-center justify-center flex-wrap gap-1.5 mt-3 text-xs text-zinc-400 px-2 text-center">
+            <span className="text-zinc-500 font-medium">Example:</span>
+            <button
+              type="button"
+              onClick={() => {
+                const exPrompt = "I'm a 21-year-old undergraduate student from Uttar Pradesh with family annual income of ₹2.5 lakh looking for higher education scholarships.";
+                setLocalInput(exPrompt);
+                setCurrentQuery(exPrompt);
+                setSelectedCategory('Education');
+                onEvaluate(exPrompt, PRESET_CITIZENS[0].profile, 'Education');
+              }}
+              className="text-zinc-400 hover:text-blue-300 underline underline-offset-4 decoration-white/20 hover:decoration-blue-400 transition-all text-left italic cursor-pointer group inline-flex items-center gap-1.5 max-w-full"
+              title="Click to try this example prompt"
+            >
+              <span className="truncate max-w-[560px]">
+                "I'm a 21-year-old undergraduate student from Uttar Pradesh with family annual income of ₹2.5 lakh looking for higher education scholarships."
+              </span>
+              <span className="text-[10px] not-italic px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20 group-hover:bg-blue-500/20 whitespace-nowrap">
+                Try this
+              </span>
+            </button>
+          </div>
 
           {/* Category Filter Pills (Calm & Clean) */}
           <div className="flex items-center justify-center space-x-2 mt-5 overflow-x-auto py-1 no-scrollbar">

@@ -164,6 +164,62 @@ export function runProfileAgent(inputQuery, existingProfile = {}) {
 }
 
 /**
+ * Intelligent regex category detection based on citizen query intent
+ */
+export function detectCategoryFromQuery(text) {
+  if (!text || typeof text !== 'string') return null;
+  const t = text.toLowerCase();
+
+  // 1. Agriculture / Farming / Land / Crops
+  if (/\b(farmer|farmers|farming|farm|farms|crop|crops|kisan|agriculture|agricultural|cultivator|cultivators|harvest|tractor|seed|seeds|fertilizer|fertilizers|krishi|land|khatauni|pashu|dairy|agri|horticulture|soil|irrigation|paddy|wheat|rythu)\b/i.test(t)) {
+    return 'Agriculture';
+  }
+
+  // 2. Education / Students / College / Scholarships
+  if (/\b(student|students|scholarship|scholarships|college|university|school|degree|btech|undergraduate|postgraduate|tuition|study|studying|hostel|matric|fellowship|exam|books|ug|pg|phd|education|educational|admission|coaching)\b/i.test(t)) {
+    return 'Education';
+  }
+
+  // 3. Healthcare / Medical / Hospital
+  if (/\b(health|healthcare|hospital|hospitals|medical|doctor|treatment|medicine|medicines|ayushman|disease|illness|clinic|surgery|patient|mediclaim|arogya|swasthya|sick|infirm|disability|maternity)\b/i.test(t)) {
+    return 'Healthcare';
+  }
+
+  // 4. Housing / Shelter / Awas
+  if (/\b(house|housing|pucca|awas|home|roof|slum|shelter|solar rooftop|pmay|flat|gramin awas|urban housing|residential|homeless)\b/i.test(t)) {
+    return 'Housing';
+  }
+
+  // 5. Enterprise / Livelihood / Small Business / Street Vendors / Artisans
+  if (/\b(vendor|street vendor|hawker|stall|shop|business|artisan|artisans|craft|vishwakarma|mudra|loan|credit|startup|msme|svanidhi|carpenter|blacksmith|weaver|tailor|entrepreneur|micro-credit|working capital|employment|job|self-employed|livelihood)\b/i.test(t)) {
+    return 'Enterprise';
+  }
+
+  // 6. Welfare / Pension / Social Security / Women / Minority
+  if (/\b(pension|elderly|senior citizen|widow|divyang|handicapped|ration|bpl|antodaya|orphan|destitute|social security|ladli|matru|women|woman|girl child|sukanya|minority|welfare)\b/i.test(t)) {
+    return 'Welfare';
+  }
+
+  return null;
+}
+
+/**
+ * Flexible category matching supporting schema synonyms (e.g. Enterprise -> employment, Welfare -> social_welfare/women/minority)
+ */
+export function matchesCategory(schemeCategory, filterCategory) {
+  if (!filterCategory || filterCategory === 'All') return true;
+  const sc = (schemeCategory || '').toLowerCase();
+  const fc = filterCategory.toLowerCase();
+  if (fc === 'enterprise') {
+    return sc === 'employment' || sc === 'enterprise' || sc === 'business';
+  }
+  if (fc === 'welfare') {
+    return sc === 'social_welfare' || sc === 'women' || sc === 'minority' || sc === 'welfare';
+  }
+  return sc === fc;
+}
+
+/**
  * AGENT 2: Scheme Agent (Simulates OpenSearch BM25 + Vector Retrieval)
  */
 export function runSchemeAgent(profile, userQuery = '', filterCategory = 'All') {
@@ -184,7 +240,7 @@ export function runSchemeAgent(profile, userQuery = '', filterCategory = 'All') 
     let relevanceScore = 0;
 
     // Category match
-    if (filterCategory !== 'All' && scheme.category.toLowerCase() !== filterCategory.toLowerCase()) {
+    if (!matchesCategory(scheme.category, filterCategory)) {
       return null;
     }
 
@@ -262,7 +318,8 @@ export async function runSchemeAgentAsync(profile, userQuery = '', filterCategor
       const data = await searchRes.json();
       const hits = data.hits?.hits || [];
       if (hits.length > 0) {
-        return hits.map(h => h._source);
+        const opensearchSchemes = hits.map(h => h._source);
+        return opensearchSchemes.filter(s => matchesCategory(s.category, filterCategory));
       }
     }
   } catch (err) {
@@ -409,14 +466,22 @@ export function runOrchestratorPipeline({ query, user_id = 'citizen-123', profil
     });
   };
 
-  addLog('Orchestrator Agent', 'PIPELINE_INIT', { query, user_id, category });
+  let targetCategory = category;
+  if ((!targetCategory || targetCategory === 'All') && query) {
+    const autoDetected = detectCategoryFromQuery(query);
+    if (autoDetected) {
+      targetCategory = autoDetected;
+    }
+  }
+
+  addLog('Orchestrator Agent', 'PIPELINE_INIT', { query, user_id, category: targetCategory });
 
   // 1. Profile Agent
   const extractedProfile = runProfileAgent(query, profileOverrides);
   addLog('Profile Agent', 'ENTITIES_EXTRACTED', { profile: extractedProfile });
 
   // 2. Scheme Agent (OpenSearch)
-  const candidateSchemes = runSchemeAgent(extractedProfile, query, category);
+  const candidateSchemes = runSchemeAgent(extractedProfile, query, targetCategory);
   addLog('Scheme Agent', 'OPENSEARCH_RETRIEVAL_COMPLETE', { candidateCount: candidateSchemes.length });
 
   // 3. Eligibility Agent (Corretto Engine)
@@ -505,6 +570,8 @@ export function runOrchestratorPipeline({ query, user_id = 'citizen-123', profil
     },
     // Backwards compatible alias for ssych UI
     profile: extractedProfile,
+    category: targetCategory,
+    detectedCategory: targetCategory,
     schemes: formattedSchemes,
     scheme_combinations: recommendation.scheme_combinations,
     recommendation: recommendation.recommendedBundle,
@@ -530,14 +597,22 @@ export async function runOrchestratorPipelineAsync({ query, user_id = 'citizen-1
     });
   };
 
-  addLog('Orchestrator Agent', 'PIPELINE_INIT', { query, user_id, category });
+  let targetCategory = category;
+  if ((!targetCategory || targetCategory === 'All') && query) {
+    const autoDetected = detectCategoryFromQuery(query);
+    if (autoDetected) {
+      targetCategory = autoDetected;
+    }
+  }
+
+  addLog('Orchestrator Agent', 'PIPELINE_INIT', { query, user_id, category: targetCategory });
 
   // 1. Profile Agent
   const extractedProfile = runProfileAgent(query, profileOverrides);
   addLog('Profile Agent', 'ENTITIES_EXTRACTED', { profile: extractedProfile });
 
   // 2. Scheme Agent (Attempts OpenSearch, falls back to local BM25)
-  const candidateSchemes = await runSchemeAgentAsync(extractedProfile, query, category);
+  const candidateSchemes = await runSchemeAgentAsync(extractedProfile, query, targetCategory);
   addLog('Scheme Agent', 'OPENSEARCH_RETRIEVAL_COMPLETE', { candidateCount: candidateSchemes.length });
 
   // 3. Eligibility Agent (Attempts Corretto microservice port 8081, falls back to in-process rules engine)
@@ -619,6 +694,8 @@ export async function runOrchestratorPipelineAsync({ query, user_id = 'citizen-1
       category: extractedProfile.category
     },
     profile: extractedProfile,
+    category: targetCategory,
+    detectedCategory: targetCategory,
     schemes: formattedSchemes,
     scheme_combinations: recommendation.scheme_combinations,
     recommendation: recommendation.recommendedBundle,

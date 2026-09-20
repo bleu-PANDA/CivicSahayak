@@ -13,7 +13,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import multer from 'multer';
 
-import { runOrchestratorPipeline, runOrchestratorPipelineAsync, reloadSchemes } from './services/strandsAgents.js';
+import { runOrchestratorPipeline, runOrchestratorPipelineAsync, reloadSchemes, matchesCategory } from './services/strandsAgents.js';
 import { evaluateEligibilityRules } from './services/correttoEngine.js';
 import { processDocumentInSandbox, processDocumentInSandboxAsync } from './services/firecrackerSandbox.js';
 import { CEDAR_POLICIES, getActiveCedarPolicies, authorizeCedar } from './services/cedarAuth.js';
@@ -144,12 +144,13 @@ app.get('/api/health', async (req, res) => {
  */
 app.post('/api/evaluate', cedarAuthMiddleware('evaluate', 'EligibilityResult'), async (req, res) => {
   try {
-    const { query, user_id = 'citizen-123', documents, verifiedDocIds, profile, category } = req.body;
+    const { query = '', user_id = 'citizen-123', documents, verifiedDocIds, profile, category } = req.body;
+    const queryStr = typeof query === 'string' ? query.trim() : '';
 
-    if (!query || typeof query !== 'string' || !query.trim()) {
+    if (!queryStr && (!profile || typeof profile !== 'object' || Object.keys(profile).length === 0)) {
       return res.status(400).json({
         error: 'Invalid request payload',
-        message: 'Query parameter must be a non-empty string'
+        message: 'Query string or profile object must be provided'
       });
     }
 
@@ -157,7 +158,7 @@ app.post('/api/evaluate', cedarAuthMiddleware('evaluate', 'EligibilityResult'), 
 
     // Use async multi-agent pipeline with real OpenSearch & Corretto microservice checks
     const result = await runOrchestratorPipelineAsync({
-      query,
+      query: queryStr,
       user_id,
       profileOverrides: profile || {},
       verifiedDocIds: verifiedDocs,
@@ -432,7 +433,7 @@ app.get('/api/schemes', cedarAuthMiddleware('read', 'Scheme'), (req, res) => {
   let results = [...schemesList];
 
   if (category && category !== 'All') {
-    results = results.filter(s => s.category?.toLowerCase() === category.toLowerCase());
+    results = results.filter(s => matchesCategory(s.category, category));
   }
 
   if (state && state !== 'All India' && state !== 'Central') {

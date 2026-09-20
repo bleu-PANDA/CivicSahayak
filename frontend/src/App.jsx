@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import Navbar from './components/Navbar';
-import Hero, { PRESET_CITIZENS } from './components/Hero';
+import Hero, { PRESET_CITIZENS, detectCategoryFromQuery } from './components/Hero';
 import SchemeCard from './components/SchemeCard';
 import SchemeDetailModal from './components/SchemeDetailModal';
 import DocumentSandbox from './components/DocumentSandbox';
@@ -13,7 +13,7 @@ import { Sparkles, Shield, User, Filter, AlertCircle, ArrowUpRight } from 'lucid
 export default function App() {
   const [activeTab, setActiveTab] = useState('discovery');
   const [isLoading, setIsLoading] = useState(false);
-  const [currentQuery, setCurrentQuery] = useState(PRESET_CITIZENS[0].query);
+  const [currentQuery, setCurrentQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
 
   // Data states
@@ -34,17 +34,31 @@ export default function App() {
   };
 
   // Run evaluation
-  const handleEvaluate = async (queryText, profileOverride = null, category = 'All') => {
+  const handleEvaluate = async (queryText = '', profileOverride = null, category = null) => {
     setIsLoading(true);
     try {
+      // Determine category: if category is specified, use it. If not or 'All', auto-detect from queryText
+      let targetCategory = category;
+      if (!targetCategory || targetCategory === 'All') {
+        const autoCat = detectCategoryFromQuery(queryText);
+        if (autoCat) {
+          targetCategory = autoCat;
+          setSelectedCategory(autoCat);
+        } else {
+          targetCategory = category || selectedCategory || 'All';
+        }
+      } else {
+        setSelectedCategory(targetCategory);
+      }
+
       const response = await fetch('/api/evaluate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          query: queryText || currentQuery,
+          query: queryText !== undefined ? queryText : currentQuery,
           profile: profileOverride || userProfile,
           verifiedDocIds,
-          category: category || selectedCategory
+          category: targetCategory
         })
       });
 
@@ -64,9 +78,9 @@ export default function App() {
     }
   };
 
-  // Initial load
+  // Initial load: keep search bar clean while evaluating initial profile
   useEffect(() => {
-    handleEvaluate(PRESET_CITIZENS[0].query, PRESET_CITIZENS[0].profile, 'All');
+    handleEvaluate('', PRESET_CITIZENS[0].profile, 'All');
   }, []);
 
   // When a document is verified in the Firecracker sandbox
