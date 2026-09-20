@@ -87,8 +87,20 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-void text-zinc-100 flex flex-col font-sans">
+    <div className="relative min-h-screen text-zinc-100 flex flex-col font-sans bg-[#02040A]">
       
+      {/* Fixed Still Background Image */}
+      <div className="fixed inset-0 z-0 pointer-events-none select-none overflow-hidden">
+        <img
+          src="/bg-india-gate.jpg"
+          alt="India Gate Background"
+          className="w-full h-full object-cover object-center filter brightness-[0.72] contrast-[1.08]"
+        />
+        {/* Cinematic atmospheric overlays for text readability */}
+        <div className="absolute inset-0 bg-[#02040A]/50" />
+        <div className="absolute inset-0 bg-gradient-to-t from-[#02040A] via-transparent to-[#02040A]/40" />
+      </div>
+
       {/* Top Navigation */}
       <Navbar
         activeTab={activeTab}
@@ -107,7 +119,7 @@ export default function App() {
       )}
 
       {/* Main Content Area */}
-      <main className="flex-1 pb-24">
+      <main className="relative z-10 flex-1 pb-24">
         
         {/* Tab 1: Discovery Engine */}
         {activeTab === 'discovery' && (
