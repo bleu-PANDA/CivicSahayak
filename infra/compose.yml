@@ -1,0 +1,90 @@
+version: '3.8'
+
+services:
+  # 1. CivicOS Frontend (React + Vite + ssych UI)
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+    container_name: civicos-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - VITE_API_BASE=http://backend:8080
+    depends_on:
+      - backend
+
+  # 2. CivicOS Backend API & Strands Agent Orchestrator
+  backend:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    container_name: civicos-backend
+    ports:
+      - "8080:8080"
+    environment:
+      - PORT=8080
+      - OPENSEARCH_URL=http://opensearch:9200
+      - CORRETTO_URL=http://rules-engine:8081
+      - DATABASE_URL=postgres://civicos_user:civicos_pass@postgres:5432/civicos_dev
+      - S3_ENDPOINT=http://localstack:4566
+    depends_on:
+      - opensearch
+      - postgres
+      - rules-engine
+
+  # 3. Amazon Corretto Rules Engine (Java 21 Spring Boot)
+  rules-engine:
+    build:
+      context: ../rules-engine
+      dockerfile: Dockerfile
+    container_name: civicos-rules-engine
+    ports:
+      - "8081:8081"
+    environment:
+      - SERVER_PORT=8081
+
+  # 4. OpenSearch Knowledge Base
+  opensearch:
+    image: opensearchproject/opensearch:2.13.0
+    container_name: civicos-opensearch
+    environment:
+      - discovery.type=single-node
+      - DISABLE_SECURITY_PLUGIN=true
+      - "OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m"
+    ports:
+      - "9200:9200"
+      - "9600:9600"
+    volumes:
+      - opensearch-data:/usr/share/opensearch/data
+
+  # 5. PostgreSQL Local Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: civicos-postgres
+    environment:
+      - POSTGRES_USER=civicos_user
+      - POSTGRES_PASSWORD=civicos_pass
+      - POSTGRES_DB=civicos_dev
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./init-postgres.sql:/docker-entrypoint-initdb.d/init.sql
+
+  # 6. LocalStack AWS Emulation (S3 + Lambda)
+  localstack:
+    image: localstack/localstack:latest
+    container_name: civicos-localstack
+    ports:
+      - "4566:4566"
+    environment:
+      - SERVICES=s3,lambda
+      - DOCKER_HOST=unix:///var/run/docker.sock
+    volumes:
+      - localstack-data:/var/lib/localstack
+
+volumes:
+  opensearch-data:
+  postgres-data:
+  localstack-data:
