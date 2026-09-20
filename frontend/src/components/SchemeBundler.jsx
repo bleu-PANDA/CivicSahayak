@@ -97,10 +97,10 @@ export default function SchemeBundler({ currentBundle, onSelectScheme }) {
             <button
               key={b.id}
               onClick={() => setSelectedBundleId(b.id)}
-              className={`px-4 py-2 rounded-xl text-xs font-mono whitespace-nowrap transition-all flex items-center space-x-2 ${
+              className={`px-4 py-2 rounded-xl text-xs font-mono whitespace-nowrap transition-all duration-200 hover:scale-[1.03] active:scale-[0.98] flex items-center space-x-2 ${
                 selectedBundleId === b.id
-                  ? 'bg-blue-600/30 text-white border border-blue-500/50 shadow-sm'
-                  : 'bg-surface-soft/60 text-zinc-400 border border-white/[0.07] hover:bg-surface-raised'
+                  ? 'bg-blue-600/30 text-white border border-blue-500/50 shadow-[0_0_15px_rgba(59,130,246,0.25)]'
+                  : 'bg-surface-soft/60 text-zinc-400 border border-white/[0.07] hover:bg-white/[0.06] hover:text-zinc-200'
               }`}
             >
               <span>{b.title}</span>
@@ -109,7 +109,7 @@ export default function SchemeBundler({ currentBundle, onSelectScheme }) {
         </div>
 
         {activeCuratedBundle && (
-          <div className="p-6 rounded-2xl bg-surface-soft/80 border border-white/[0.08] shadow-xl space-y-6">
+          <div className="p-6 rounded-2xl bg-surface-soft/80 border border-white/[0.08] shadow-xl space-y-6 animate-fade-in">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div>
                 <span className="text-[10px] font-mono text-cyan-400 uppercase tracking-wider">Target Beneficiary</span>
@@ -129,14 +129,14 @@ export default function SchemeBundler({ currentBundle, onSelectScheme }) {
               {activeCuratedBundle.schemes?.map((s) => (
                 <div
                   key={s.id}
-                  className="p-4 rounded-xl bg-black/40 border border-white/[0.06] hover:border-blue-500/30 transition-all flex flex-col justify-between"
+                  className="p-4 rounded-xl bg-black/40 border border-white/[0.06] hover:border-blue-400/40 hover:bg-black/60 hover:scale-[1.03] hover:-translate-y-1 hover:shadow-[0_10px_25px_rgba(0,0,0,0.5),0_0_15px_rgba(59,130,246,0.15)] transition-all duration-200 flex flex-col justify-between group"
                 >
                   <div>
                     <div className="flex items-center justify-between text-[10px] font-mono text-zinc-400 mb-1">
-                      <span>{s.scheme_code}</span>
-                      <span className="text-blue-400">{s.category}</span>
+                      <span className="text-zinc-300 font-medium">{s.scheme_code}</span>
+                      <span className="text-blue-400 group-hover:text-blue-300 transition-colors">{s.category}</span>
                     </div>
-                    <h4 className="text-sm font-semibold text-white mb-2 line-clamp-2">{s.scheme_name}</h4>
+                    <h4 className="text-sm font-semibold text-white mb-2 line-clamp-2 group-hover:text-blue-200 transition-colors">{s.scheme_name}</h4>
                     <p className="text-xs text-zinc-400 line-clamp-2 mb-3">{s.description}</p>
                   </div>
                   <div className="pt-2 border-t border-white/[0.05] text-xs font-mono text-emerald-400 font-semibold">

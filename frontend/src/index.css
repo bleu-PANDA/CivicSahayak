@@ -35,17 +35,39 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
-/* ssych UI hairline borders and card treatments */
+/* ssych UI hairline borders and interactive card treatments */
 .card-ssych {
-  background-color: rgba(13, 17, 28, 0.7);
-  backdrop-filter: blur(12px);
+  background-color: rgba(13, 17, 28, 0.72);
+  backdrop-filter: blur(14px);
   border: 1px solid var(--border-hairline);
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: transform 0.28s cubic-bezier(0.34, 1.4, 0.64, 1),
+              box-shadow 0.28s cubic-bezier(0.16, 1, 0.3, 1),
+              border-color 0.25s ease,
+              background-color 0.25s ease;
+  will-change: transform, box-shadow;
 }
 
 .card-ssych:hover {
-  border-color: rgba(255, 255, 255, 0.18);
-  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.5), 0 0 20px -5px rgba(59, 130, 246, 0.15);
+  transform: translateY(-5px) scale(1.02);
+  background-color: rgba(16, 22, 38, 0.88);
+  border-color: rgba(59, 130, 246, 0.45);
+  box-shadow: 0 16px 36px -8px rgba(0, 0, 0, 0.8),
+              0 0 28px -2px rgba(59, 130, 246, 0.22);
+}
+
+/* Interactive button press & lift utility */
+.btn-interactive {
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+              box-shadow 0.2s ease,
+              background-color 0.2s ease;
+}
+
+.btn-interactive:hover {
+  transform: translateY(-1.5px) scale(1.02);
+}
+
+.btn-interactive:active {
+  transform: translateY(1px) scale(0.97);
 }
 
 /* Custom micro-scrollbars */
@@ -61,19 +83,41 @@ body {
 ::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.15);
   border-radius: 9999px;
+  transition: background 0.2s ease;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.25);
+  background: rgba(59, 130, 246, 0.5);
 }
 
-/* Pulse indicator animation */
+/* Micro-animations */
 @keyframes live-pulse {
   0% { transform: scale(0.95); opacity: 0.8; }
   50% { transform: scale(1.05); opacity: 1; }
   100% { transform: scale(0.95); opacity: 0.8; }
 }
 
+@keyframes glow-line {
+  0% { transform: translateX(-100%); opacity: 0; }
+  50% { opacity: 1; }
+  100% { transform: translateX(100%); opacity: 0; }
+}
+
+@keyframes soft-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 .animate-live {
   animation: live-pulse 2s infinite ease-in-out;
+}
+
+.animate-fade-in {
+  animation: soft-fade-in 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }

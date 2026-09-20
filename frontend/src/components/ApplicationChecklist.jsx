@@ -159,18 +159,18 @@ export default function ApplicationChecklist({ selectedScheme, allSchemes = [], 
                     <div
                       key={doc.id}
                       onClick={() => toggleCheck(doc.id)}
-                      className={`flex items-start justify-between p-3.5 rounded-xl border transition-all cursor-pointer ${
+                      className={`flex items-start justify-between p-3.5 rounded-xl border transition-all duration-200 cursor-pointer ${
                         isChecked
-                          ? 'bg-emerald-950/20 border-emerald-500/40 text-emerald-200'
-                          : 'bg-black/30 border-white/[0.07] text-zinc-300 hover:border-white/[0.15]'
+                          ? 'bg-emerald-950/20 border-emerald-500/40 text-emerald-200 shadow-[0_0_15px_rgba(16,185,129,0.15)]'
+                          : 'bg-black/30 border-white/[0.07] text-zinc-300 hover:border-blue-400/40 hover:bg-black/50 hover:scale-[1.01] hover:-translate-y-0.5'
                       }`}
                     >
                       <div className="flex items-start space-x-3">
                         <button type="button" className="mt-0.5 text-zinc-400">
                           {isChecked ? (
-                            <CheckSquare className="w-4 h-4 text-emerald-400" />
+                            <CheckSquare className="w-4 h-4 text-emerald-400 transition-transform duration-150 scale-110" />
                           ) : (
-                            <Square className="w-4 h-4 text-zinc-500" />
+                            <Square className="w-4 h-4 text-zinc-500 hover:text-zinc-300 transition-colors" />
                           )}
                         </button>
                         <div>
@@ -184,7 +184,7 @@ export default function ApplicationChecklist({ selectedScheme, allSchemes = [], 
                       </div>
 
                       {isAutoVerified && (
-                        <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                        <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 animate-pulse">
                           Verified ✓
                         </span>
                       )}
@@ -200,14 +200,17 @@ export default function ApplicationChecklist({ selectedScheme, allSchemes = [], 
                 Sequential Submission Roadmap
               </h3>
 
-              <div className="space-y-4">
+              <div className="space-y-3">
                 {checklistData.steps?.map((step) => (
-                  <div key={step.stepNumber} className="flex items-start space-x-3.5">
-                    <div className="w-6 h-6 rounded-full bg-blue-600/20 border border-blue-500/40 text-blue-400 flex items-center justify-center font-mono font-bold text-xs flex-shrink-0 mt-0.5">
+                  <div 
+                    key={step.stepNumber} 
+                    className="flex items-start space-x-3.5 p-3 rounded-xl border border-transparent hover:border-white/[0.08] hover:bg-white/[0.03] hover:translate-x-1.5 transition-all duration-200 group"
+                  >
+                    <div className="w-6 h-6 rounded-full bg-blue-600/20 border border-blue-500/40 text-blue-400 group-hover:scale-110 group-hover:bg-blue-600/30 group-hover:shadow-[0_0_12px_rgba(59,130,246,0.35)] transition-all flex items-center justify-center font-mono font-bold text-xs flex-shrink-0 mt-0.5">
                       {step.stepNumber}
                     </div>
                     <div>
-                      <div className="text-xs font-mono font-bold text-white mb-0.5">
+                      <div className="text-xs font-mono font-bold text-white group-hover:text-blue-200 transition-colors mb-0.5">
                         {step.title}
                       </div>
                       <p className="text-xs text-zinc-400 leading-relaxed">
