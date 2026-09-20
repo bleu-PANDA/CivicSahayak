@@ -6,6 +6,7 @@ public class UserProfile {
     private double familyIncome;
     private String educationLevel;
     private String occupation;
+    private java.util.List<String> verifiedDocuments = new java.util.ArrayList<>();
 
     public UserProfile() {}
 
@@ -23,4 +24,7 @@ public class UserProfile {
 
     public String getOccupation() { return occupation; }
     public void setOccupation(String occupation) { this.occupation = occupation; }
+
+    public java.util.List<String> getVerifiedDocuments() { return verifiedDocuments; }
+    public void setVerifiedDocuments(java.util.List<String> verifiedDocuments) { this.verifiedDocuments = verifiedDocuments != null ? verifiedDocuments : new java.util.ArrayList<>(); }
 }

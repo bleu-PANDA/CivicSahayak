@@ -36,3 +36,5 @@ localstack_data/
 minio_data/
 postgres_data/
 opensearch_data/
+backend/uploads/*
+!backend/uploads/.gitkeep

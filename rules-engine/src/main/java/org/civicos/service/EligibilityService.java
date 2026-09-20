@@ -79,14 +79,37 @@ public class EligibilityService {
         if (eduPassed) totalScore += eduWeight;
         results.add(new CriterionResult("education", eduPassed, eduWeight, eduDetail));
 
-        List<String> missingDocs = List.of("institution_certificate");
+        // Document verification
+        List<String> requiredDocs = scheme.getRequiredDocuments();
+        if (requiredDocs == null || requiredDocs.isEmpty()) {
+            requiredDocs = List.of("institution_certificate");
+        }
+
+        List<String> verified = profile.getVerifiedDocuments() != null ? profile.getVerifiedDocuments() : List.of();
+        List<String> missingDocs = new ArrayList<>();
+        for (String doc : requiredDocs) {
+            if (!verified.contains(doc)) {
+                missingDocs.add(doc);
+            }
+        }
 
         // When all 4 criteria pass (100), pending document deduction leaves deterministic score = 92
         if (totalScore == 100 && !missingDocs.isEmpty()) {
             totalScore = 92;
         }
 
-        String status = totalScore >= 75 ? "ELIGIBLE" : totalScore >= 45 ? "PARTIALLY_ELIGIBLE" : "NOT_ELIGIBLE";
+        boolean allMandatoryPassed = agePassed && incomePassed && statePassed && eduPassed;
+        String status;
+        if (!statePassed) {
+            // State mismatch restricts eligibility for state-specific schemes
+            status = totalScore >= 45 ? "PARTIALLY_ELIGIBLE" : "NOT_ELIGIBLE";
+        } else if (allMandatoryPassed && totalScore >= 75) {
+            status = "ELIGIBLE";
+        } else if (totalScore >= 45) {
+            status = "PARTIALLY_ELIGIBLE";
+        } else {
+            status = "NOT_ELIGIBLE";
+        }
 
         return new EvaluationResponse(totalScore, results, missingDocs, status);
     }

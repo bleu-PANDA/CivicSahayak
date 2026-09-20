@@ -7,6 +7,7 @@ public class SchemeRule {
     private Integer ageMax;
     private String requiredState;
     private String requiredEducation;
+    private java.util.List<String> requiredDocuments = new java.util.ArrayList<>();
 
     public SchemeRule() {}
 
@@ -27,4 +28,7 @@ public class SchemeRule {
 
     public String getRequiredEducation() { return requiredEducation; }
     public void setRequiredEducation(String requiredEducation) { this.requiredEducation = requiredEducation; }
+
+    public java.util.List<String> getRequiredDocuments() { return requiredDocuments; }
+    public void setRequiredDocuments(java.util.List<String> requiredDocuments) { this.requiredDocuments = requiredDocuments != null ? requiredDocuments : new java.util.ArrayList<>(); }
 }
