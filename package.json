@@ -4,10 +4,13 @@
   "type": "module",
   "description": "CivicOS: Sovereign AI Government Benefits Discovery Platform",
   "scripts": {
-    "dev:backend": "cd backend && npm run start",
-    "dev:frontend": "cd frontend && npm run dev",
+    "start": "./start.sh",
+    "start:docker": "./start.sh --docker",
+    "dev:backend": "PORT=8090 cd backend && npm run start",
+    "dev:frontend": "BACKEND_PORT=8090 cd frontend && npm run dev",
     "build:frontend": "cd frontend && npm run build",
-    "test:evaluate": "curl -s -X POST http://localhost:8080/api/evaluate -H 'Content-Type: application/json' -d '{\"query\":\"I am a 21-year-old student from Uttar Pradesh\"}'",
+    "test": "cd backend && npm test",
+    "test:evaluate": "curl -s -X POST http://localhost:8090/api/evaluate -H 'Content-Type: application/json' -d '{\"query\":\"I am a 21-year-old student from Uttar Pradesh\"}'",
     "compose:up": "cd infra && docker compose up -d",
     "compose:down": "cd infra && docker compose down"
   },

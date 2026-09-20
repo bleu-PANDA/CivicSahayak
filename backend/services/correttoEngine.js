@@ -100,16 +100,31 @@ export function evaluateEligibilityRules(userProfile, scheme, verifiedDocIds = [
   let statePassed = true;
   let stateMessage = "Domicile criterion satisfied";
 
+  const canonicalState = (s) => {
+    const l = (s || '').trim().toLowerCase();
+    if (l === 'up' || l === 'uttar pradesh') return 'uttar pradesh';
+    if (l === 'uk' || l === 'uttarakhand' || l === 'uttrakhand') return 'uttarakhand';
+    if (l === 'mh' || l === 'maharashtra') return 'maharashtra';
+    if (l === 'ka' || l === 'karnataka') return 'karnataka';
+    if (l === 'br' || l === 'bihar') return 'bihar';
+    if (l === 'rj' || l === 'rajasthan') return 'rajasthan';
+    if (l === 'dl' || l === 'delhi') return 'delhi';
+    if (l === 'mp' || l === 'madhya pradesh') return 'madhya pradesh';
+    if (l === 'tn' || l === 'tamil nadu') return 'tamil nadu';
+    if (l === 'ts' || l === 'telangana') return 'telangana';
+    if (l === 'kl' || l === 'kerala') return 'kerala';
+    if (l === 'wb' || l === 'west bengal') return 'west bengal';
+    if (l === 'gj' || l === 'gujarat') return 'gujarat';
+    if (l === 'pb' || l === 'punjab') return 'punjab';
+    if (l === 'hr' || l === 'haryana') return 'haryana';
+    if (l === 'or' || l === 'odisha' || l === 'orissa') return 'odisha';
+    return l;
+  };
+
   if (requiredState && requiredState !== "All India" && requiredState !== "Central") {
     const userState = (userProfile.state || '').trim().toLowerCase();
     const reqState = requiredState.trim().toLowerCase();
-    const matches = userState === reqState ||
-      (userState.includes('up') && reqState.includes('uttar pradesh')) ||
-      (userState.includes('uttar pradesh') && reqState.includes('up')) ||
-      (userState.includes('mh') && reqState.includes('maharashtra')) ||
-      (userState.includes('maharashtra') && reqState.includes('mh')) ||
-      (userState.includes('ka') && reqState.includes('karnataka')) ||
-      (userState.includes('karnataka') && reqState.includes('ka'));
+    const matches = canonicalState(userState) === canonicalState(reqState);
 
     if (!matches) {
       statePassed = false;
@@ -156,7 +171,8 @@ export function evaluateEligibilityRules(userProfile, scheme, verifiedDocIds = [
       userEdu.includes(reqEduStr) || reqEduStr.includes(userEdu) ||
       (reqEduStr.includes('ug') && userEdu.includes('undergraduate')) ||
       (reqEduStr.includes('undergraduate') && userEdu.includes('ug')) ||
-      userEdu.includes('btech') || userEdu.includes('student');
+      (reqEduStr.includes('pg') && userEdu.includes('postgraduate')) ||
+      (reqEduStr.includes('postgraduate') && userEdu.includes('pg'));
 
     if (!eduMatch) {
       eduOccPassed = false;
@@ -205,17 +221,33 @@ export function evaluateEligibilityRules(userProfile, scheme, verifiedDocIds = [
     missingDocuments.push("institution_certificate");
   }
 
+  const allCriteriaPassed = criteriaResults.every(c => c.passed);
+
   // Exact benchmark match: when all criteria pass (100) and institution_certificate is missing, score is 92
-  if (totalScore === 100 && missingDocuments.length > 0) {
+  if (allCriteriaPassed && totalScore === 100 && missingDocuments.length > 0) {
     totalScore = 92;
   }
 
-  // Status mapping
+  // If age failed severely (exceeds max or below min by > 5 years), cap score below threshold
+  const ageCriterion = criteriaResults.find(c => c.criterion === 'age');
+  if (ageCriterion && !ageCriterion.passed) {
+    const diff = (ageMax !== null && ageMax !== undefined && userProfile.age > ageMax)
+      ? (userProfile.age - ageMax)
+      : ((ageMin !== null && ageMin !== undefined && userProfile.age < ageMin) ? (ageMin - userProfile.age) : 0);
+    if (diff > 5) {
+      totalScore = Math.min(totalScore, 40);
+    }
+  }
+
+  // Deterministic Status Mapping:
+  // ELIGIBLE strictly requires all criteria to pass and score >= 75
   let status = "NOT_ELIGIBLE";
-  if (totalScore >= 75) {
+  if (allCriteriaPassed && totalScore >= 75) {
     status = "ELIGIBLE";
   } else if (totalScore >= 45) {
     status = "PARTIALLY_ELIGIBLE";
+  } else {
+    status = "NOT_ELIGIBLE";
   }
 
   return {

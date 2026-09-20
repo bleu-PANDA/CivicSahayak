@@ -122,6 +122,8 @@ services:
         condition: service_healthy
       minio:
         condition: service_healthy
+      rules-engine:
+        condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8080/api/health || exit 1"]
       interval: 10s
@@ -154,8 +156,44 @@ services:
         limits:
           memory: 768M
 
+  # 7. Frontend Web Application
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: civicos-frontend
+    restart: always
+    ports:
+      - "3000:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
+  # 8. Seed Data Loader (runs once on startup)
+  seed-data:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: civicos-seed-data
+    command: ["node", "scripts/seed-schemes.js"]
+    environment:
+      - OPENSEARCH_URL=http://opensearch:9200
+    depends_on:
+      opensearch:
+        condition: service_healthy
+    restart: "no"
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
 volumes:
   postgres_data:
   opensearch_data:
   localstack_data:
   minio_data:
+

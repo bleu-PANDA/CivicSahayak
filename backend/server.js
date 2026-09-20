@@ -10,6 +10,7 @@ import cors from 'cors';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import multer from 'multer';
 
 import { runOrchestratorPipeline, reloadSchemes } from './services/strandsAgents.js';
 import { evaluateEligibilityRules } from './services/correttoEngine.js';
@@ -26,6 +27,22 @@ const PORT = process.env.PORT || 8080;
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
+
+// Multer configuration for multipart/form-data file uploads
+const uploadsDir = path.join(__dirname, 'uploads');
+if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+const upload = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => cb(null, uploadsDir),
+    filename: (req, file, cb) => cb(null, `${Date.now()}-${file.originalname}`)
+  }),
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/tiff'];
+    if (allowedTypes.includes(file.mimetype)) cb(null, true);
+    else cb(new Error(`Unsupported file type: ${file.mimetype}. Allowed: PDF, JPEG, PNG, TIFF`));
+  }
+});
 
 // In-memory audit log store (emulating PostgreSQL agent_logs table)
 const agentLogs = [];
@@ -48,27 +65,63 @@ let schemesList = reloadSchemes();
 
 /**
  * 1. GET /api/health
+ * Performs real connectivity checks with graceful fallback.
  * Conforms to docs/API_CONTRACT.md and legacy diagnostics.
  */
-app.get('/api/health', (req, res) => {
+async function checkService(url, timeoutMs = 2000) {
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    const resp = await fetch(url, { signal: controller.signal });
+    clearTimeout(timer);
+    return resp.ok ? 'CONNECTED' : 'DEGRADED';
+  } catch {
+    return 'UNREACHABLE';
+  }
+}
+
+app.get('/api/health', async (req, res) => {
+  const opensearchUrl = process.env.OPENSEARCH_URL || 'http://localhost:9200';
+  const correttoUrl = process.env.CORRETTO_URL || 'http://localhost:8081';
+  const localstackUrl = process.env.S3_ENDPOINT || 'http://localhost:4566';
+  const pgUrl = process.env.DATABASE_URL;
+
+  // Run connectivity checks in parallel
+  const [opensearchStatus, rulesEngineStatus, localstackStatus] = await Promise.all([
+    checkService(`${opensearchUrl}/_cluster/health`),
+    checkService(`${correttoUrl}/actuator/health`),
+    checkService(`${localstackUrl}/_localstack/health`)
+  ]);
+
+  // Cedar is always in-process — check if policies are loaded
+  const cedarStatus = CEDAR_POLICIES.length > 0 ? 'ACTIVE' : 'UNCONFIGURED';
+
+  // PostgreSQL: check if DATABASE_URL is configured
+  const pgStatus = pgUrl ? 'CONFIGURED' : 'NOT_CONFIGURED';
+
+  // Determine overall health
+  const criticalServices = [cedarStatus];
+  const overallStatus = criticalServices.every(s => s === 'ACTIVE' || s === 'CONNECTED')
+    ? 'HEALTHY' : 'DEGRADED';
+
   res.json({
-    status: 'HEALTHY',
+    status: overallStatus,
     services: {
-      opensearch: 'CONNECTED',
-      postgres: 'CONNECTED',
-      rules_engine: 'CONNECTED',
-      cedar: 'ACTIVE',
-      localstack: 'CONNECTED',
+      opensearch: opensearchStatus,
+      postgres: pgStatus,
+      rules_engine: rulesEngineStatus,
+      cedar: cedarStatus,
+      localstack: localstackStatus,
       firecracker: 'READY'
     },
     version: '1.0.0',
     timestamp: new Date().toISOString(),
     // Backward compatibility with previous health endpoint
     components: {
-      opensearch: { status: 'CONNECTED', indexedSchemes: schemesList.length, host: 'localhost:9200' },
-      correttoRulesEngine: { status: 'ACTIVE', runtime: 'Amazon Corretto Java 21 Spring Boot', port: 8081 },
+      opensearch: { status: opensearchStatus, indexedSchemes: schemesList.length, host: opensearchUrl.replace('http://', '') },
+      correttoRulesEngine: { status: rulesEngineStatus, runtime: 'Amazon Corretto Java 21 Spring Boot', port: 8081 },
       strandsAgents: { status: 'INITIALIZED', agents: ['Orchestrator', 'Profile', 'Scheme', 'Eligibility', 'Evidence', 'Recommendation'] },
-      cedarAuthorization: { status: 'ENFORCING', activePolicies: CEDAR_POLICIES.length },
+      cedarAuthorization: { status: cedarStatus, activePolicies: CEDAR_POLICIES.length },
       firecrackerSandbox: { status: 'READY', runtime: 'Linux KVM microVM', maxDurationSec: 30 }
     }
   });
@@ -119,9 +172,14 @@ app.post('/api/evaluate', cedarAuthMiddleware('evaluate', 'EligibilityResult'), 
  * Document sandboxing via simulated Firecracker microVM with OCR.
  * Conforms to docs/API_CONTRACT.md.
  */
-app.post('/api/upload', cedarAuthMiddleware('upload', 'Document'), (req, res) => {
+app.post('/api/upload', cedarAuthMiddleware('upload', 'Document'), upload.single('file'), (req, res) => {
   try {
-    const { user_id = 'citizen-123', document_type, file_name, file, incomeOverride } = req.body;
+    // Support both multipart/form-data and JSON body
+    const isMultipart = !!req.file;
+    const user_id = req.body.user_id || 'citizen-123';
+    const document_type = req.body.document_type;
+    const file_name = isMultipart ? req.file.originalname : (req.body.file_name || `${document_type}_2026.pdf`);
+    const incomeOverride = req.body.incomeOverride;
 
     if (!document_type) {
       return res.status(400).json({
@@ -132,13 +190,16 @@ app.post('/api/upload', cedarAuthMiddleware('upload', 'Document'), (req, res) =>
 
     const sandboxResult = processDocumentInSandbox({
       documentType: document_type,
-      fileName: file_name || `${document_type}_2026.pdf`,
+      fileName: file_name,
+      filePath: isMultipart ? req.file.path : null,
+      fileSize: isMultipart ? req.file.size : null,
+      mimeType: isMultipart ? req.file.mimetype : null,
       incomeOverride
     });
 
     const docId = `doc-${Math.random().toString(36).substring(2, 8)}-${Date.now().toString().slice(-4)}`;
 
-    recordAgentLog('Document Agent (Firecracker)', { user_id, document_type }, {
+    recordAgentLog('Document Agent (Firecracker)', { user_id, document_type, uploadMethod: isMultipart ? 'multipart' : 'json' }, {
       vmId: sandboxResult.microVM.vmId,
       confidence: sandboxResult.document.extractedData.confidenceScore
     });
@@ -147,6 +208,7 @@ app.post('/api/upload', cedarAuthMiddleware('upload', 'Document'), (req, res) =>
       document_id: docId,
       user_id,
       document_type,
+      upload_method: isMultipart ? 'multipart/form-data' : 'application/json',
       verification_status: "VERIFIED",
       confidence_score: sandboxResult.document.extractedData.confidenceScore,
       extracted_data: sandboxResult.document.extractedData,
@@ -171,8 +233,8 @@ app.post('/api/upload', cedarAuthMiddleware('upload', 'Document'), (req, res) =>
   }
 });
 
-// Alias for frontend
-app.post('/api/upload-document', (req, res) => {
+// Alias for frontend — supports both multipart and JSON
+app.post('/api/upload-document', upload.single('file'), (req, res) => {
   req.url = '/api/upload';
   app._router.handle(req, res);
 });
@@ -222,42 +284,62 @@ app.post('/api/checklist', (req, res) => {
     };
   });
 
+  let portalHostname = "scholarships.gov.in";
+  try {
+    const parsed = new URL(scheme.application_url || scheme.official_url || "https://scholarships.gov.in");
+    portalHostname = parsed.hostname;
+  } catch {}
+
+  const steps = [
+    {
+      step_number: 1,
+      stepNumber: 1,
+      title: "Aadhaar e-KYC Verification",
+      description: "Authenticate your biometric identity via UIDAI OTP on the portal."
+    },
+    {
+      step_number: 2,
+      stepNumber: 2,
+      title: "Obtain Institution Certificate",
+      description: "Download statutory bonafide form and obtain registrar seal from your institution."
+    },
+    {
+      step_number: 3,
+      stepNumber: 3,
+      title: "Online Application Submission",
+      description: `Submit application on ${portalHostname} before statutory deadline.`
+    },
+    {
+      step_number: 4,
+      stepNumber: 4,
+      title: "Aadhaar-Seeded DBT Account Verification",
+      description: "Verify your bank account is active on NPCI mapper for Direct Benefit Transfer."
+    }
+  ];
+
   const response = {
-    scheme_id: scheme.scheme_id || scheme.scheme_code,
+    // Standard snake_case
+    scheme_id: scheme.scheme_id || scheme.scheme_code || scheme.id,
     scheme_name: scheme.name || scheme.scheme_name,
     official_url: scheme.application_url || scheme.official_url || "https://scholarships.gov.in",
     estimated_processing_days: "30-45 days",
     application_fee: "₹0 (Free Government Portal)",
     required_documents: formattedDocs,
-    steps: [
-      {
-        step_number: 1,
-        title: "Aadhaar e-KYC Verification",
-        description: "Authenticate your biometric identity via UIDAI OTP on the portal."
-      },
-      {
-        step_number: 2,
-        title: "Obtain Institution Certificate",
-        description: "Download statutory bonafide form and obtain registrar seal from your institution."
-      },
-      {
-        step_number: 3,
-        title: "Online Application Submission",
-        description: `Submit application on ${new URL(scheme.application_url || scheme.official_url || "https://gov.in").hostname} before statutory deadline.`
-      },
-      {
-        step_number: 4,
-        title: "Aadhaar-Seeded DBT Account Verification",
-        description: "Verify your bank account is active on NPCI mapper for Direct Benefit Transfer."
-      }
-    ]
+    steps,
+    // CamelCase aliases
+    schemeId: scheme.scheme_id || scheme.scheme_code || scheme.id,
+    schemeName: scheme.name || scheme.scheme_name,
+    officialPortalUrl: scheme.application_url || scheme.official_url || "https://scholarships.gov.in",
+    estimatedProcessingDays: "30-45 days",
+    applicationFee: "₹0 (Free Government Portal)",
+    requiredDocuments: formattedDocs
   };
 
   res.json(response);
 });
 
 // GET alias for ssych UI
-app.get('/api/checklist/:schemeId', (req, res) => {
+app.get('/api/checklist/:schemeId', cedarAuthMiddleware('read', 'Scheme'), (req, res) => {
   req.body = { scheme_id: req.params.schemeId };
   req.method = 'POST';
   req.url = '/api/checklist';
@@ -267,7 +349,7 @@ app.get('/api/checklist/:schemeId', (req, res) => {
 /**
  * 5. GET /api/schemes
  */
-app.get('/api/schemes', (req, res) => {
+app.get('/api/schemes', cedarAuthMiddleware('read', 'Scheme'), (req, res) => {
   schemesList = reloadSchemes();
   const { category, state, q } = req.query;
   let results = [...schemesList];
@@ -320,7 +402,7 @@ app.post('/api/evaluate-eligibility', (req, res) => {
 /**
  * 7. GET /api/combinations
  */
-app.get('/api/combinations', (req, res) => {
+app.get('/api/combinations', cedarAuthMiddleware('read', 'Scheme'), (req, res) => {
   schemesList = reloadSchemes();
   const upScholarship = schemesList.find(s => s.scheme_id === 'UP_SCHOLARSHIP_2024');
   const ayushman = schemesList.find(s => s.scheme_id === 'AYUSHMAN_BHARAT');
