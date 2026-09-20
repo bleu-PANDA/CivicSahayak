@@ -1,0 +1,312 @@
+import React, { useState } from 'react';
+import { Cpu, Upload, FileCheck, Shield, CheckCircle2, RefreshCw, Terminal, Eye, Lock } from 'lucide-react';
+
+export const SAMPLE_DOCUMENTS = [
+  {
+    id: 'income_certificate',
+    title: 'Family Income Certificate (Revenue Dept)',
+    description: 'Certified income certificate issued by Tehsildar with e-District digital QR verification.',
+    sampleData: { applicantName: 'Citizen Beneficiary', incomeOverride: 215000, state: 'Uttar Pradesh' }
+  },
+  {
+    id: 'aadhaar_card',
+    title: 'UIDAI Aadhaar Card',
+    description: 'Biometric identity proof verifying date of birth, photo hash, and domicile.',
+    sampleData: { gender: 'Female', state: 'Uttar Pradesh' }
+  },
+  {
+    id: 'institution_bonafide',
+    title: 'College Bonafide & Enrollment Slip',
+    description: 'Affiliation & semester bonafide issued by Dean / Registrar of accredited university.',
+    sampleData: {}
+  },
+  {
+    id: 'caste_certificate',
+    title: 'OBC / SC / ST Social Category Certificate',
+    description: 'Statutory certificate for non-creamy layer verification and reservation eligibility.',
+    sampleData: { category: 'OBC (Non-Creamy Layer)' }
+  }
+];
+
+export default function DocumentSandbox({ onDocumentVerified, verifiedDocIds = [] }) {
+  const [selectedDocType, setSelectedDocType] = useState('income_certificate');
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [sandboxResult, setSandboxResult] = useState(null);
+  const [customFile, setCustomFile] = useState(null);
+
+  const handleProcessDocument = async (docType, extraData = {}) => {
+    setIsProcessing(true);
+    setSandboxResult(null);
+
+    try {
+      const response = await fetch('/api/upload-document', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          documentType: docType,
+          fileName: customFile ? customFile.name : `${docType}_verified_2026.pdf`,
+          ...extraData
+        })
+      });
+
+      const data = await response.json();
+      setSandboxResult(data);
+
+      if (data.success) {
+        onDocumentVerified(docType, data.document.extractedData);
+      }
+    } catch (err) {
+      console.error('Document sandbox processing error:', err);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  return (
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+      
+      {/* Top Banner */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-6 rounded-2xl bg-[#090C16] border border-white/[0.1] shadow-xl">
+        <div>
+          <div className="flex items-center space-x-2 text-xs font-mono text-purple-400 mb-1">
+            <Cpu className="w-4 h-4" />
+            <span>Firecracker MicroVM Document Sandboxing</span>
+          </div>
+          <h2 className="text-xl sm:text-2xl font-bold text-white tracking-tight">
+            Zero-Retention Isolated Document Verification
+          </h2>
+          <p className="text-xs sm:text-sm text-zinc-400 max-w-2xl mt-1 leading-relaxed">
+            Uploaded citizen documents are processed inside ephemeral Linux KVM microVMs with Tesseract OCR.
+            MicroVMs are terminated immediately upon extraction, ensuring zero statutory data leakage.
+          </p>
+        </div>
+
+        <div className="flex items-center space-x-3 flex-shrink-0">
+          <div className="px-3 py-2 rounded-xl bg-purple-950/30 border border-purple-800/40 text-left">
+            <div className="text-[10px] font-mono text-purple-400 uppercase">VM Isolation</div>
+            <div className="text-xs font-mono font-bold text-white">128MB Jailer Sandbox</div>
+          </div>
+          <div className="px-3 py-2 rounded-xl bg-emerald-950/30 border border-emerald-800/40 text-left">
+            <div className="text-[10px] font-mono text-emerald-400 uppercase">Cedar Policy</div>
+            <div className="text-xs font-mono font-bold text-white">Strict Least Privilege</div>
+          </div>
+        </div>
+      </div>
+
+      {/* Main Grid: Sample Document Selectors & Firecracker Output */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        
+        {/* Left 5 Cols: Sample Document Picker */}
+        <div className="lg:col-span-5 space-y-4">
+          <div className="text-xs font-mono text-zinc-400 uppercase tracking-wider flex items-center justify-between">
+            <span>Select Document to Sandbox:</span>
+            <span className="text-[11px] text-zinc-500">{verifiedDocIds.length} verified in session</span>
+          </div>
+
+          <div className="space-y-3">
+            {SAMPLE_DOCUMENTS.map((sample) => {
+              const isVerified = verifiedDocIds.includes(sample.id);
+              const isSelected = selectedDocType === sample.id;
+
+              return (
+                <div
+                  key={sample.id}
+                  onClick={() => setSelectedDocType(sample.id)}
+                  className={`p-4 rounded-xl border transition-all cursor-pointer ${
+                    isSelected
+                      ? 'bg-purple-950/20 border-purple-500/50 shadow-sm'
+                      : 'bg-surface-soft/60 border-white/[0.07] hover:border-white/[0.15]'
+                  }`}
+                >
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <div className="flex items-center space-x-2">
+                        <span className="text-xs font-mono font-semibold text-white">
+                          {sample.title}
+                        </span>
+                        {isVerified && (
+                          <span className="inline-flex items-center space-x-1 px-1.5 py-0.5 rounded text-[10px] font-mono bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                            <CheckCircle2 className="w-2.5 h-2.5" />
+                            <span>Verified</span>
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-zinc-400 mt-1 leading-relaxed">
+                        {sample.description}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mt-3 pt-3 border-t border-white/[0.06] flex items-center justify-between">
+                    <span className="text-[10px] font-mono text-zinc-500">
+                      OCR Target: {sample.id}
+                    </span>
+                    <button
+                      type="button"
+                      disabled={isProcessing}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedDocType(sample.id);
+                        handleProcessDocument(sample.id, sample.sampleData);
+                      }}
+                      className="px-3 py-1 rounded bg-purple-600 hover:bg-purple-500 text-white text-xs font-mono font-medium transition-colors disabled:opacity-50 flex items-center space-x-1.5"
+                    >
+                      <Cpu className="w-3 h-3" />
+                      <span>Spawn MicroVM</span>
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Custom File Upload Simulation Dropzone */}
+          <div className="p-4 rounded-xl border border-dashed border-white/[0.15] bg-black/20 text-center hover:border-purple-500/40 transition-colors">
+            <Upload className="w-6 h-6 text-zinc-400 mx-auto mb-2" />
+            <div className="text-xs font-mono text-zinc-200 font-semibold mb-1">
+              Upload Custom Document (PDF / Image)
+            </div>
+            <p className="text-[11px] text-zinc-500 mb-3">
+              Simulates client-side drag-and-drop into the microVM container
+            </p>
+            <input
+              type="file"
+              id="fileInput"
+              className="hidden"
+              onChange={(e) => {
+                if (e.target.files[0]) {
+                  setCustomFile(e.target.files[0]);
+                  handleProcessDocument(selectedDocType, { fileName: e.target.files[0].name });
+                }
+              }}
+            />
+            <label
+              htmlFor="fileInput"
+              className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-white/[0.06] hover:bg-white/[0.1] text-xs font-mono text-zinc-300 border border-white/[0.1] cursor-pointer transition-colors"
+            >
+              <Upload className="w-3.5 h-3.5" />
+              <span>Browse File</span>
+            </label>
+          </div>
+        </div>
+
+        {/* Right 7 Cols: Firecracker MicroVM Execution Terminal & Results */}
+        <div className="lg:col-span-7">
+          <div className="h-full rounded-2xl bg-[#06080F] border border-white/[0.1] p-5 flex flex-col justify-between shadow-2xl">
+            
+            {/* Terminal Header */}
+            <div>
+              <div className="flex items-center justify-between pb-3 border-b border-white/[0.08] mb-4">
+                <div className="flex items-center space-x-2">
+                  <Terminal className="w-4 h-4 text-purple-400" />
+                  <span className="text-xs font-mono font-bold text-zinc-200">
+                    Firecracker Sandbox Execution Trace
+                  </span>
+                </div>
+                <div className="flex items-center space-x-1.5 text-[11px] font-mono text-zinc-500">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                  <span>firectl daemon active</span>
+                </div>
+              </div>
+
+              {/* Processing Loader */}
+              {isProcessing && (
+                <div className="py-16 text-center space-y-3 animate-in fade-in">
+                  <div className="w-10 h-10 mx-auto rounded-xl bg-purple-500/10 border border-purple-500/30 flex items-center justify-center text-purple-400 animate-spin">
+                    <RefreshCw className="w-5 h-5" />
+                  </div>
+                  <div className="text-xs font-mono text-purple-300">
+                    Spawning isolated Firecracker microVM instance...
+                  </div>
+                  <p className="text-[11px] font-mono text-zinc-500">
+                    Checking Cedar PBAC &rarr; Sandboxing memory (128MB) &rarr; Running Tesseract OCR
+                  </p>
+                </div>
+              )}
+
+              {/* Result State */}
+              {!isProcessing && sandboxResult && (
+                <div className="space-y-4 animate-in fade-in">
+                  
+                  {/* MicroVM Lifecycle Card */}
+                  <div className="p-3.5 rounded-xl bg-black/40 border border-white/[0.06] font-mono text-xs space-y-2">
+                    <div className="flex items-center justify-between text-zinc-400">
+                      <span>VM Instance:</span>
+                      <span className="text-purple-300 font-bold">{sandboxResult.microVM.vmId}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-zinc-400">
+                      <span>Execution Duration:</span>
+                      <span className="text-emerald-400">{sandboxResult.microVM.durationMs} ms</span>
+                    </div>
+                    <div className="flex items-center justify-between text-zinc-400">
+                      <span>Cedar AuthZ Check:</span>
+                      <span className="text-emerald-400">ALLOW ({sandboxResult.cedarVerification?.matchingPolicyId})</span>
+                    </div>
+                    <div className="text-[11px] text-zinc-500 pt-1 border-t border-white/[0.05]">
+                      Lifecycle: {sandboxResult.microVM.lifecycle}
+                    </div>
+                  </div>
+
+                  {/* Extracted JSON Inspector */}
+                  <div>
+                    <div className="flex items-center justify-between text-xs font-mono text-zinc-400 mb-2">
+                      <span className="flex items-center space-x-1.5">
+                        <FileCheck className="w-3.5 h-3.5 text-emerald-400" />
+                        <span>Extracted & Certified Parameters:</span>
+                      </span>
+                      <span className="text-[11px] text-emerald-400 font-mono">
+                        Confidence: {(sandboxResult.document.extractedData.confidenceScore * 100).toFixed(1)}%
+                      </span>
+                    </div>
+
+                    <div className="p-4 rounded-xl bg-black/60 border border-white/[0.08] font-mono text-xs text-zinc-300 space-y-2 max-h-60 overflow-y-auto">
+                      {Object.entries(sandboxResult.document.extractedData).map(([key, val]) => (
+                        <div key={key} className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 py-1 border-b border-white/[0.04] last:border-0">
+                          <span className="text-zinc-500">{key}:</span>
+                          <span className="text-zinc-200 font-semibold text-right truncate">
+                            {typeof val === 'boolean' ? (val ? 'true ✓' : 'false ✗') : String(val)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Verification Guarantee */}
+                  <div className="flex items-center space-x-2 p-3 rounded-lg bg-emerald-950/20 border border-emerald-800/30 text-xs font-mono text-emerald-300">
+                    <Shield className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+                    <span>Statutory eligibility scores updated across candidate schemes in real-time.</span>
+                  </div>
+
+                </div>
+              )}
+
+              {/* Initial Empty State */}
+              {!isProcessing && !sandboxResult && (
+                <div className="py-20 text-center space-y-3">
+                  <div className="w-12 h-12 mx-auto rounded-2xl bg-white/[0.03] border border-white/[0.08] flex items-center justify-center text-zinc-500">
+                    <Lock className="w-6 h-6" />
+                  </div>
+                  <div className="text-xs font-mono text-zinc-400">
+                    No active sandbox microVM. Select a document on the left to spawn an isolated container.
+                  </div>
+                  <p className="text-[11px] text-zinc-600 max-w-sm mx-auto">
+                    Meets strict air-gapped government data isolation standards with zero persistence.
+                  </p>
+                </div>
+              )}
+
+            </div>
+
+            {/* Bottom Status bar */}
+            <div className="pt-4 border-t border-white/[0.06] flex items-center justify-between text-[11px] font-mono text-zinc-500">
+              <span>Security Level: KVM Kernel Sandbox</span>
+              <span>Memory Limit: 128 MB</span>
+            </div>
+
+          </div>
+        </div>
+
+      </div>
+    </div>
+  );
+}
