@@ -15,14 +15,14 @@ export default function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [currentQuery, setCurrentQuery] = useState(PRESET_CITIZENS[0].query);
   const [selectedCategory, setSelectedCategory] = useState('All');
-  
+
   // Data states
   const [userProfile, setUserProfile] = useState(PRESET_CITIZENS[0].profile);
   const [schemes, setSchemes] = useState([]);
   const [recommendedBundle, setRecommendedBundle] = useState(null);
   const [telemetryLogs, setTelemetryLogs] = useState([]);
   const [verifiedDocIds, setVerifiedDocIds] = useState(['income_certificate']);
-  
+
   // Modal & Target States
   const [selectedSchemeForModal, setSelectedSchemeForModal] = useState(null);
   const [targetChecklistScheme, setTargetChecklistScheme] = useState(null);
@@ -88,13 +88,13 @@ export default function App() {
 
   return (
     <div className="relative min-h-screen text-zinc-100 flex flex-col font-sans bg-[#02040A]">
-      
+
       {/* Fixed Still Background Image (Bright & Visible) */}
       <div className="fixed inset-0 z-0 pointer-events-none select-none overflow-hidden">
         <img
           src="/bg-india-gate.jpg"
           alt="India Gate Background"
-          className="w-full h-full object-cover object-center filter brightness-[0.95] contrast-[1.04]"
+          className="w-full h-full object-cover object-center filter brightness-[0.70] contrast-[1.04]"
         />
         {/* Soft subtle tint for card separation while keeping India Gate clearly visible */}
         <div className="absolute inset-0 bg-[#02040A]/25" />
@@ -120,11 +120,11 @@ export default function App() {
 
       {/* Main Content Area */}
       <main className="relative z-10 flex-1 pb-24">
-        
+
         {/* Tab 1: Discovery Engine */}
         {activeTab === 'discovery' && (
           <div className="space-y-12">
-            
+
             {/* Hero Section */}
             <Hero
               onEvaluate={handleEvaluate}
