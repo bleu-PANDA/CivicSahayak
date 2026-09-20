@@ -269,10 +269,11 @@ export default function App() {
       <footer className="border-t border-white/[0.08] bg-[#02040A] py-8 text-xs font-mono text-zinc-500">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center space-x-2">
-            <span className="font-semibold text-white">CivicOS</span>
+            <span className="font-semibold text-white">Civic<span className="text-blue-400">Sahayak</span></span>
             <span>—</span>
             <span>Government Benefits Discovery Platform</span>
           </div>
+
           <div className="flex items-center space-x-4">
             <span>Zero AWS Cost</span>
             <span>•</span>

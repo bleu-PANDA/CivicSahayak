@@ -56,7 +56,7 @@ export default function ApplicationChecklist({ selectedScheme, allSchemes = [], 
 
   const handleCopy = () => {
     if (!checklistData) return;
-    const text = `CivicOS Application Checklist - ${checklistData.schemeName}\nOfficial Portal: ${checklistData.officialPortalUrl}\nProcessing Time: ${checklistData.estimatedProcessingDays}\n\nRequired Documents:\n` +
+    const text = `CivicSahayak Application Checklist - ${checklistData.schemeName}\nOfficial Portal: ${checklistData.officialPortalUrl}\nProcessing Time: ${checklistData.estimatedProcessingDays}\n\nRequired Documents:\n` +
       checklistData.requiredDocuments.map(d => `[${checkedItems[d.id] ? 'X' : ' '}] ${d.name}`).join('\n') +
       `\n\nNext Steps:\n` +
       checklistData.steps.map(s => `${s.stepNumber}. ${s.title}: ${s.description}`).join('\n');

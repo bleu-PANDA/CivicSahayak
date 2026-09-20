@@ -25,9 +25,10 @@ export default function Navbar({ activeTab, setActiveTab, verifiedDocCount = 0 }
               <ShieldCheck className="w-4 h-4" />
             </div>
             <span className="font-semibold tracking-tight text-white text-sm sm:text-base">
-              Civic<span className="text-blue-400">OS</span>
+              Civic<span className="text-blue-400">Sahayak</span>
             </span>
           </div>
+
 
           {/* Center Navigation Tabs */}
           <nav className="hidden md:flex items-center space-x-1 sm:space-x-1.5">
