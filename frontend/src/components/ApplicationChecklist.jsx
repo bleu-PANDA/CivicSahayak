@@ -69,37 +69,37 @@ export default function ApplicationChecklist({ selectedScheme, allSchemes = [], 
   const activeScheme = allSchemes.find(s => (s.id === activeSchemeId || s.scheme_id === activeSchemeId || s.scheme_code === activeSchemeId)) || selectedScheme;
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-10">
       
-      {/* Top Banner */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-6 rounded-2xl bg-[#090C16] border border-white/[0.1] shadow-xl">
+      {/* Top Banner (Calm & Clear) */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-6 rounded-2xl bg-[#090C16] border border-white/[0.08] shadow-lg">
         <div>
-          <div className="flex items-center space-x-2 text-xs font-mono text-emerald-400 mb-1">
-            <FileCheck className="w-4 h-4" />
-            <span>CivicOS Action Guidance Engine</span>
+          <div className="flex items-center space-x-2 text-xs font-mono text-emerald-400 mb-2">
+            <FileCheck className="w-3.5 h-3.5" />
+            <span>Application Checklist</span>
           </div>
           <h2 className="text-xl sm:text-2xl font-bold text-white tracking-tight">
-            Step-by-Step Government Application Roadmap
+            Required Documents & Filing Steps
           </h2>
-          <p className="text-xs sm:text-sm text-zinc-400 max-w-2xl mt-1 leading-relaxed">
-            Eliminate rejection anxiety. Follow this structured document checklist, verification milestones, and direct official portal submission procedures.
+          <p className="text-xs sm:text-sm text-zinc-400 max-w-2xl mt-1.5 leading-relaxed">
+            Follow this step-by-step checklist to prepare official documents and submit directly to government portals.
           </p>
         </div>
 
         <div className="flex items-center space-x-2">
           <button
             onClick={handleCopy}
-            className="flex items-center space-x-1.5 px-3.5 py-2 rounded-xl bg-white/[0.06] hover:bg-white/[0.1] text-zinc-200 text-xs font-mono border border-white/[0.1] transition-colors"
+            className="flex items-center space-x-1.5 px-3.5 py-2 rounded-lg bg-white/[0.04] hover:bg-white/[0.08] text-zinc-200 text-xs font-mono border border-white/[0.08] transition-colors"
           >
-            {copied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
-            <span>{copied ? 'Copied' : 'Copy Checklist'}</span>
+            {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5 text-zinc-400" />}
+            <span>{copied ? 'Copied' : 'Copy'}</span>
           </button>
 
           <button
             onClick={() => window.print()}
-            className="flex items-center space-x-1.5 px-3.5 py-2 rounded-xl bg-white/[0.06] hover:bg-white/[0.1] text-zinc-200 text-xs font-mono border border-white/[0.1] transition-colors"
+            className="flex items-center space-x-1.5 px-3.5 py-2 rounded-lg bg-white/[0.04] hover:bg-white/[0.08] text-zinc-200 text-xs font-mono border border-white/[0.08] transition-colors"
           >
-            <Printer className="w-4 h-4" />
+            <Printer className="w-3.5 h-3.5 text-zinc-400" />
             <span className="hidden sm:inline">Print</span>
           </button>
         </div>

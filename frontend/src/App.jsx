@@ -107,11 +107,11 @@ export default function App() {
       )}
 
       {/* Main Content Area */}
-      <main className="flex-1 pb-16">
+      <main className="flex-1 pb-24">
         
         {/* Tab 1: Discovery Engine */}
         {activeTab === 'discovery' && (
-          <div className="space-y-6">
+          <div className="space-y-12">
             
             {/* Hero Section */}
             <Hero
@@ -123,32 +123,33 @@ export default function App() {
               setSelectedCategory={setSelectedCategory}
             />
 
-            {/* Extracted Profile Bar */}
+            {/* Extracted Profile Bar (Calm & Clean) */}
             {userProfile && (
               <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                <div className="p-3.5 rounded-xl bg-surface-soft/90 border border-white/[0.08] flex flex-wrap items-center justify-between gap-3 text-xs font-mono">
-                  <div className="flex items-center space-x-2">
-                    <span className="w-2 h-2 rounded-full bg-blue-400"></span>
-                    <span className="text-zinc-400 font-bold">Extracted Profile:</span>
-                    <span className="text-white font-semibold">
-                      {userProfile.age} yo • {userProfile.state} • ₹{(userProfile.family_income_annual || 0).toLocaleString('en-IN')}/yr
+                <div className="py-3 px-5 rounded-2xl bg-surface-soft/60 border border-white/[0.06] flex flex-wrap items-center justify-between gap-4 text-xs font-mono">
+                  <div className="flex items-center space-x-3 flex-wrap gap-y-1">
+                    <span className="text-zinc-500 font-medium">Citizen Profile:</span>
+                    <span className="text-white font-medium">
+                      Age {userProfile.age}
                     </span>
-                    <span className="text-zinc-500">•</span>
+                    <span className="text-zinc-600">•</span>
+                    <span className="text-zinc-300">{userProfile.state}</span>
+                    <span className="text-zinc-600">•</span>
+                    <span className="text-emerald-400">₹{(userProfile.family_income_annual || 0).toLocaleString('en-IN')}/yr</span>
+                    <span className="text-zinc-600">•</span>
                     <span className="text-blue-300">{userProfile.occupation}</span>
-                    <span className="text-zinc-500">•</span>
-                    <span className="text-zinc-300">{userProfile.education_level}</span>
-                    <span className="text-zinc-500">•</span>
+                    <span className="text-zinc-600">•</span>
                     <span className="text-zinc-400">{userProfile.category}</span>
                   </div>
 
-                  <div className="flex items-center space-x-3 text-zinc-400">
+                  <div className="flex items-center space-x-4 text-zinc-400">
                     <span>{schemes.length} matching programs</span>
                     <button
                       onClick={() => setActiveTab('sandbox')}
-                      className="text-blue-400 hover:text-blue-300 underline underline-offset-2 flex items-center space-x-0.5"
+                      className="text-blue-400 hover:text-blue-300 transition-colors flex items-center space-x-1"
                     >
-                      <span>Verify documents in Firecracker</span>
-                      <ArrowUpRight className="w-3 h-3" />
+                      <span>Verify documents</span>
+                      <ArrowUpRight className="w-3.5 h-3.5" />
                     </button>
                   </div>
                 </div>
@@ -157,21 +158,23 @@ export default function App() {
 
             {/* Schemes Results Grid */}
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-bold text-white tracking-tight flex items-center space-x-2">
-                  <span>Evaluated Benefit Schemes</span>
-                  <span className="px-2 py-0.5 rounded-full text-xs font-mono bg-white/[0.05] text-zinc-400 border border-white/[0.08]">
-                    {schemes.length}
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center space-x-3">
+                  <h2 className="text-xl font-bold text-white tracking-tight">
+                    Evaluated Benefits
+                  </h2>
+                  <span className="px-2.5 py-0.5 rounded-full text-xs font-mono bg-white/[0.04] text-zinc-400 border border-white/[0.08]">
+                    {schemes.length} schemes
                   </span>
-                </h2>
+                </div>
 
-                <div className="text-xs font-mono text-zinc-400">
-                  Ranked by Corretto Hard Boundary Match
+                <div className="text-xs font-mono text-zinc-500 hidden sm:block">
+                  Corretto 21 Deterministic Scoring
                 </div>
               </div>
 
-              {/* Grid Cards */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+              {/* Grid Cards (Spacious) */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {schemes.map((scheme) => (
                   <SchemeCard
                     key={scheme.id}
@@ -183,10 +186,10 @@ export default function App() {
               </div>
 
               {schemes.length === 0 && !isLoading && (
-                <div className="p-12 text-center rounded-2xl bg-surface-soft border border-white/[0.08]">
-                  <AlertCircle className="w-8 h-8 text-zinc-500 mx-auto mb-2" />
-                  <div className="text-sm font-semibold text-zinc-300">No schemes found matching this criteria</div>
-                  <p className="text-xs text-zinc-500 mt-1">Try broadening your prompt or selecting 'All' categories.</p>
+                <div className="p-16 text-center rounded-2xl bg-surface-soft/40 border border-white/[0.06]">
+                  <AlertCircle className="w-8 h-8 text-zinc-500 mx-auto mb-3" />
+                  <div className="text-sm font-medium text-zinc-300">No schemes found matching this criteria</div>
+                  <p className="text-xs text-zinc-500 mt-1">Try broadening your description or selecting 'All' categories.</p>
                 </div>
               )}
             </div>
