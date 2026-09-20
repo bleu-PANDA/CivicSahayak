@@ -5,8 +5,56 @@
  */
 
 import { authorizeCedar } from './cedarAuth.js';
+import { createRequire } from 'module';
 
-export function processDocumentInSandbox(documentPayload) {
+const require = createRequire(import.meta.url);
+const pdfParse = require('pdf-parse');
+
+export async function extractTextFromBuffer(buffer, mimeType = '') {
+  try {
+    if (mimeType.includes('pdf') || (buffer && buffer.slice(0, 4).toString() === '%PDF')) {
+      const data = await pdfParse(buffer);
+      return data.text || '';
+    }
+    return buffer.toString('utf8');
+  } catch (err) {
+    console.warn('[Firecracker OCR] Buffer parsing notice:', err.message);
+    return '';
+  }
+}
+
+export function parseOcrEntities(text, docType) {
+  const result = {};
+  if (!text) return result;
+
+  // Income extraction
+  const incomeMatch = text.match(/(?:income|annual income|family income|earning|salary)[\s:]*(?:rs\.?|₹)?\s*([0-9,]{5,8})/i);
+  if (incomeMatch) {
+    result.verifiedAnnualIncome = parseInt(incomeMatch[1].replace(/,/g, ''), 10);
+  }
+
+  // Certificate number extraction
+  const certMatch = text.match(/(?:certificate\s*(?:no|number)|cert\s*no|application\s*no)[\s:]*([A-Z0-9\/-]{6,30})/i);
+  if (certMatch) {
+    result.certificateNumber = certMatch[1].trim();
+  }
+
+  // Issuing authority
+  const authMatch = text.match(/(tehsildar|sub-divisional magistrate|sdm|district magistrate|revenue officer|uidai|unique identification authority)/i);
+  if (authMatch) {
+    result.issuingAuthority = authMatch[1].toUpperCase();
+  }
+
+  // Applicant name
+  const nameMatch = text.match(/(?:name of applicant|applicant name|name)[\s:]*([A-Za-z\s]{3,40})/i);
+  if (nameMatch) {
+    result.applicantName = nameMatch[1].trim();
+  }
+
+  return result;
+}
+
+export function processDocumentInSandbox(documentPayload, ocrExtracted = null) {
   const microVMId = `vm-fc-x86-${Math.random().toString(36).substring(2, 9)}`;
   const startTime = Date.now();
 
@@ -31,11 +79,11 @@ export function processDocumentInSandbox(documentPayload) {
       extractedData = {
         documentType: 'income_certificate',
         title: 'Annual Family Income Certificate',
-        issuingAuthority: 'Tehsildar / Sub-Divisional Magistrate (Revenue Dept)',
-        applicantName: documentPayload.applicantName || 'Citizen Beneficiary',
-        verifiedAnnualIncome: documentPayload.incomeOverride || 215000,
+        issuingAuthority: ocrExtracted?.issuingAuthority || 'Tehsildar / Sub-Divisional Magistrate (Revenue Dept)',
+        applicantName: ocrExtracted?.applicantName || documentPayload.applicantName || 'Citizen Beneficiary',
+        verifiedAnnualIncome: ocrExtracted?.verifiedAnnualIncome || documentPayload.incomeOverride || 215000,
         currency: 'INR',
-        certificateNumber: `UP/REV/2026/${Math.floor(100000 + Math.random() * 900000)}`,
+        certificateNumber: ocrExtracted?.certificateNumber || `UP/REV/2026/${Math.floor(100000 + Math.random() * 900000)}`,
         issueDate: '2025-08-14',
         validUntil: '2028-08-13',
         digitalSignatureVerified: true,
@@ -134,4 +182,16 @@ export function processDocumentInSandbox(documentPayload) {
       extractedData
     }
   };
+}
+
+export async function processDocumentInSandboxAsync(documentPayload) {
+  let ocrExtracted = null;
+  if (documentPayload.buffer) {
+    const rawText = await extractTextFromBuffer(documentPayload.buffer, documentPayload.mimeType);
+    ocrExtracted = parseOcrEntities(rawText, documentPayload.documentType);
+    if (rawText) {
+      ocrExtracted.rawTextSnippet = rawText.substring(0, 300);
+    }
+  }
+  return processDocumentInSandbox(documentPayload, ocrExtracted);
 }

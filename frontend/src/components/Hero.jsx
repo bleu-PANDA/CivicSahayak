@@ -97,9 +97,9 @@ export default function Hero({ onEvaluate, isLoading, currentQuery, setCurrentQu
         {/* Natural Language Command Bar */}
         <div className="max-w-3xl mx-auto mb-10">
           <form onSubmit={handleSubmit} className="relative group">
-            <div className="relative flex flex-col sm:flex-row items-stretch rounded-xl bg-[#090C16] border border-white/[0.1] hover:border-white/[0.18] p-2 transition-all shadow-xl">
+            <div className="relative flex flex-col sm:flex-row items-stretch rounded-xl bg-[#090C16]/90 border border-white/[0.12] hover:border-blue-500/35 focus-within:border-blue-400/60 focus-within:ring-2 focus-within:ring-blue-500/25 focus-within:shadow-[0_0_35px_rgba(59,130,246,0.22)] p-2 transition-all duration-300 shadow-xl">
               <div className="flex items-center flex-1 px-3 py-1.5">
-                <Search className="w-4 h-4 text-zinc-400 mr-3 flex-shrink-0" />
+                <Search className="w-4 h-4 text-zinc-400 group-focus-within:text-blue-400 mr-3 flex-shrink-0 transition-colors duration-200" />
                 <input
                   type="text"
                   value={localInput}
@@ -111,7 +111,7 @@ export default function Hero({ onEvaluate, isLoading, currentQuery, setCurrentQu
               <button
                 type="submit"
                 disabled={isLoading}
-                className="mt-2 sm:mt-0 flex items-center justify-center space-x-2 px-5 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs sm:text-sm font-medium transition-all shadow-sm disabled:opacity-50"
+                className="mt-2 sm:mt-0 flex items-center justify-center space-x-2 px-5 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-500 hover:shadow-[0_0_20px_rgba(59,130,246,0.4)] text-white text-xs sm:text-sm font-medium transition-all duration-200 hover:scale-[1.03] active:scale-[0.98] shadow-sm disabled:opacity-50 group"
               >
                 {isLoading ? (
                   <>
@@ -121,7 +121,7 @@ export default function Hero({ onEvaluate, isLoading, currentQuery, setCurrentQu
                 ) : (
                   <>
                     <span>Find Schemes</span>
-                    <ArrowRight className="w-3.5 h-3.5" />
+                    <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1.5 transition-transform duration-200" />
                   </>
                 )}
               </button>
@@ -137,10 +137,10 @@ export default function Hero({ onEvaluate, isLoading, currentQuery, setCurrentQu
                   setSelectedCategory(cat);
                   onEvaluate(localInput, null, cat);
                 }}
-                className={`px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap transition-all ${
+                className={`px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap transition-all duration-200 hover:scale-105 active:scale-95 ${
                   selectedCategory === cat
-                    ? 'bg-blue-500/15 text-blue-400 border border-blue-500/30'
-                    : 'text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.04]'
+                    ? 'bg-blue-500/20 text-blue-300 border border-blue-500/40 shadow-[0_0_12px_rgba(59,130,246,0.2)]'
+                    : 'text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.06] border border-transparent'
                 }`}
               >
                 {cat}
@@ -149,7 +149,7 @@ export default function Hero({ onEvaluate, isLoading, currentQuery, setCurrentQu
           </div>
         </div>
 
-        {/* 5 Citizen Presets (Clean Minimalist Cards) */}
+        {/* 5 Citizen Presets (Interactive Highlight Cards) */}
         <div className="max-w-4xl mx-auto">
           <div className="text-center mb-4">
             <span className="text-xs font-mono text-zinc-500">
@@ -162,17 +162,17 @@ export default function Hero({ onEvaluate, isLoading, currentQuery, setCurrentQu
               <button
                 key={preset.id}
                 onClick={() => handleSelectPreset(preset)}
-                className="text-left p-3.5 rounded-xl bg-surface-soft/60 border border-white/[0.06] hover:border-blue-500/30 hover:bg-surface-soft transition-all group flex flex-col justify-between"
+                className="text-left p-3.5 rounded-xl bg-surface-soft/60 border border-white/[0.06] hover:border-blue-400/40 hover:bg-white/[0.08] hover:shadow-[0_8px_24px_rgba(0,0,0,0.5),0_0_18px_rgba(59,130,246,0.18)] hover:scale-[1.05] hover:-translate-y-1 active:scale-[0.98] transition-all duration-200 group flex flex-col justify-between"
               >
                 <div>
-                  <div className="text-[10px] font-mono text-blue-400/80 mb-1">
+                  <div className="text-[10px] font-mono text-blue-400/80 group-hover:text-blue-300 mb-1 transition-colors">
                     {preset.tag}
                   </div>
                   <div className="text-xs font-medium text-zinc-200 group-hover:text-white transition-colors">
                     {preset.title}
                   </div>
                 </div>
-                <div className="mt-2 text-[10px] font-mono text-zinc-500">
+                <div className="mt-2 text-[10px] font-mono text-zinc-500 group-hover:text-zinc-400 transition-colors">
                   {preset.subtitle}
                 </div>
               </button>

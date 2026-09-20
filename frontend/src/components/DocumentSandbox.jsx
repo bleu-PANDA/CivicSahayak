@@ -99,10 +99,10 @@ export default function DocumentSandbox({ onDocumentVerified, verifiedDocIds = [
                 <div
                   key={sample.id}
                   onClick={() => setSelectedDocType(sample.id)}
-                  className={`p-4 rounded-xl border transition-all cursor-pointer ${
+                  className={`p-4 rounded-xl border transition-all duration-200 cursor-pointer ${
                     isSelected
-                      ? 'bg-purple-950/20 border-purple-500/40 shadow-sm'
-                      : 'bg-surface-soft/60 border-white/[0.06] hover:border-white/[0.12]'
+                      ? 'bg-purple-950/25 border-purple-500/50 shadow-[0_0_20px_rgba(168,85,247,0.18)] scale-[1.01]'
+                      : 'bg-surface-soft/60 border-white/[0.06] hover:border-purple-400/40 hover:bg-surface-soft hover:scale-[1.02] hover:-translate-y-0.5 hover:shadow-md'
                   }`}
                 >
                   <div className="flex items-start justify-between">
@@ -112,7 +112,7 @@ export default function DocumentSandbox({ onDocumentVerified, verifiedDocIds = [
                           {sample.title}
                         </span>
                         {isVerified && (
-                          <span className="inline-flex items-center space-x-1 px-1.5 py-0.5 rounded text-[10px] font-mono bg-emerald-500/15 text-emerald-400 border border-emerald-500/25">
+                          <span className="inline-flex items-center space-x-1 px-1.5 py-0.5 rounded text-[10px] font-mono bg-emerald-500/15 text-emerald-400 border border-emerald-500/25 animate-pulse">
                             <CheckCircle2 className="w-2.5 h-2.5" />
                             <span>Verified</span>
                           </span>
@@ -136,7 +136,7 @@ export default function DocumentSandbox({ onDocumentVerified, verifiedDocIds = [
                         setSelectedDocType(sample.id);
                         handleProcessDocument(sample.id, sample.sampleData);
                       }}
-                      className="px-3 py-1 rounded-lg bg-purple-600 hover:bg-purple-500 text-white text-xs font-mono font-medium transition-colors disabled:opacity-50 flex items-center space-x-1.5"
+                      className="px-3 py-1 rounded-lg bg-purple-600 hover:bg-purple-500 hover:shadow-[0_0_12px_rgba(168,85,247,0.4)] text-white text-xs font-mono font-medium transition-all duration-200 hover:scale-105 active:scale-95 disabled:opacity-50 flex items-center space-x-1.5"
                     >
                       <Cpu className="w-3 h-3" />
                       <span>Spawn MicroVM</span>

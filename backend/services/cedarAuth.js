@@ -1,8 +1,9 @@
-/**
- * Cedar Authorization Service
- * Implements Amazon Cedar-compatible Policy-Based Access Control (PBAC).
- * Enforces least-privilege for citizens, agents, OpenSearch queries, and Firecracker microVMs.
- */
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 export const CEDAR_POLICIES = [
   {
@@ -63,6 +64,76 @@ export const CEDAR_POLICIES = [
   }
 ];
 
+export function loadCedarPoliciesFromDisk() {
+  const cedarDir = path.resolve(__dirname, '../../infra/cedar');
+  const loadedPolicies = [];
+  try {
+    if (fs.existsSync(cedarDir)) {
+      const files = fs.readdirSync(cedarDir).filter(f => f.endsWith('.cedar'));
+      for (const file of files) {
+        const filePath = path.join(cedarDir, file);
+        const content = fs.readFileSync(filePath, 'utf8');
+        
+        // Parse permit blocks
+        const blocks = content.split(/permit\s*\(/g).slice(1);
+        blocks.forEach((block, idx) => {
+          try {
+            const body = block.split(/\)\s*(?:when|;)/)[0];
+            const whenMatch = block.match(/when\s*\{([^}]+)\}/);
+            const condition = whenMatch ? whenMatch[1].trim() : null;
+
+            let principalType = 'User';
+            let principalId = null;
+            const princMatch = body.match(/principal\s*(?:in|==)\s*([A-Za-z0-9_:]+)(?:::\"([^\"]+)\")?/);
+            if (princMatch) {
+              principalType = princMatch[1].replace(/Action::|Agent::|User::/, '');
+              principalId = princMatch[2] || null;
+            }
+
+            const actions = [];
+            const actionMatch = body.match(/action\s*(?:in|==)\s*(\[[^\]]+\]|[A-Za-z0-9_:]+::\"[^\"]+\")/);
+            if (actionMatch) {
+              const actStr = actionMatch[1];
+              const acts = actStr.match(/\"([^\"]+)\"/g);
+              if (acts) {
+                acts.forEach(a => actions.push(a.replace(/\"/g, '')));
+              }
+            }
+
+            let resourceType = 'General';
+            let resourceId = null;
+            const resMatch = body.match(/resource\s*(?:in|==)\s*([A-Za-z0-9_:]+)(?:::\"([^\"]+)\")?/);
+            if (resMatch) {
+              resourceType = resMatch[1].replace(/OpenSearch::|Sandbox::/, '');
+              resourceId = resMatch[2] || null;
+            }
+
+            loadedPolicies.push({
+              id: `${file.replace('.cedar', '')}-policy-${idx + 1}`,
+              sourceFile: file,
+              effect: 'permit',
+              principalType,
+              principalId,
+              actions: actions.length > 0 ? actions : ['*'],
+              resourceType,
+              resourceId,
+              condition
+            });
+          } catch (e) {}
+        });
+      }
+    }
+  } catch (err) {
+    console.warn('[Cedar Loader] Notice:', err.message);
+  }
+  return loadedPolicies;
+}
+
+export function getActiveCedarPolicies() {
+  const diskPolicies = loadCedarPoliciesFromDisk();
+  return [...CEDAR_POLICIES, ...diskPolicies];
+}
+
 /**
  * Evaluates a Cedar authorization request against active policies.
  * @param {Object} context - { principal: { type, id }, action, resource: { type, id, ownerId } }
@@ -71,7 +142,8 @@ export const CEDAR_POLICIES = [
 export function authorizeCedar(context) {
   const { principal, action, resource } = context;
 
-  for (const policy of CEDAR_POLICIES) {
+  const activePolicies = getActiveCedarPolicies();
+  for (const policy of activePolicies) {
     if (policy.effect !== 'permit') continue;
 
     // Check principal

@@ -101,7 +101,7 @@ public class EligibilityServiceTest {
     }
 
     @Test
-    @DisplayName("Edge Case: State domicile mismatch")
+    @DisplayName("Edge Case: State domicile mismatch yields PARTIALLY_ELIGIBLE instead of ELIGIBLE")
     public void testStateMismatch() {
         UserProfile profile = new UserProfile();
         profile.setAge(21);
@@ -119,5 +119,32 @@ public class EligibilityServiceTest {
 
         EvaluationResponse response = eligibilityService.evaluate(profile, scheme);
         assertFalse(response.getCriteriaResults().stream().filter(c -> c.getCriterion().equals("state")).findFirst().get().isPassed());
+        assertNotEquals("ELIGIBLE", response.getStatus(), "State mismatch must not return ELIGIBLE");
+        assertEquals("PARTIALLY_ELIGIBLE", response.getStatus());
+    }
+
+    @Test
+    @DisplayName("Dynamic documents: Verified documents remove items from missingDocs")
+    public void testDynamicDocuments() {
+        UserProfile profile = new UserProfile();
+        profile.setAge(21);
+        profile.setState("Uttar Pradesh");
+        profile.setFamilyIncome(200000.0);
+        profile.setEducationLevel("Undergraduate");
+        profile.setVerifiedDocuments(java.util.List.of("aadhaar_card", "income_certificate"));
+
+        SchemeRule scheme = new SchemeRule();
+        scheme.setSchemeCode("UP_SCHOLARSHIP_2024");
+        scheme.setIncomeCeiling(250000.0);
+        scheme.setAgeMin(17);
+        scheme.setAgeMax(25);
+        scheme.setRequiredState("Uttar Pradesh");
+        scheme.setRequiredEducation("Undergraduate");
+        scheme.setRequiredDocuments(java.util.List.of("aadhaar_card", "income_certificate", "institution_certificate"));
+
+        EvaluationResponse response = eligibilityService.evaluate(profile, scheme);
+        assertEquals(1, response.getMissingDocuments().size());
+        assertTrue(response.getMissingDocuments().contains("institution_certificate"));
+        assertFalse(response.getMissingDocuments().contains("aadhaar_card"));
     }
 }

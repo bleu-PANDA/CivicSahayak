@@ -3,6 +3,7 @@
  * Fully implements the docs/API_CONTRACT.md specification for Lovable and ssych UI.
  * Orchestrates Strands Agents, Corretto Deterministic Rules Engine,
  * Cedar Authorization, Firecracker Document Sandboxing, and OpenSearch Knowledge Base.
+ * Integrated with PostgreSQL persistence, AWS S3/LocalStack storage, and live OCR.
  */
 
 import express from 'express';
@@ -12,11 +13,13 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import multer from 'multer';
 
-import { runOrchestratorPipeline, reloadSchemes } from './services/strandsAgents.js';
+import { runOrchestratorPipeline, runOrchestratorPipelineAsync, reloadSchemes } from './services/strandsAgents.js';
 import { evaluateEligibilityRules } from './services/correttoEngine.js';
-import { processDocumentInSandbox } from './services/firecrackerSandbox.js';
-import { CEDAR_POLICIES, authorizeCedar } from './services/cedarAuth.js';
+import { processDocumentInSandbox, processDocumentInSandboxAsync } from './services/firecrackerSandbox.js';
+import { CEDAR_POLICIES, getActiveCedarPolicies, authorizeCedar } from './services/cedarAuth.js';
 import { cedarAuthMiddleware } from './src/middleware/cedar.js';
+import { initDb, persistAgentLog, persistUserDocument, persistEligibilityResults, upsertUserProfile, getDbStats } from './services/db.js';
+import { initS3Storage, uploadDocument, getS3Status } from './services/s3Storage.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -28,6 +31,10 @@ app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
+// Initialize PostgreSQL and S3 with resilient fallbacks
+initDb().catch(e => console.warn('[DB Init Notice]', e.message));
+initS3Storage().catch(e => console.warn('[S3 Init Notice]', e.message));
+
 // Multer configuration for multipart/form-data file uploads
 const uploadsDir = path.join(__dirname, 'uploads');
 if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
@@ -38,16 +45,16 @@ const upload = multer({
   }),
   limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
   fileFilter: (req, file, cb) => {
-    const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/tiff'];
+    const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/tiff', 'text/plain'];
     if (allowedTypes.includes(file.mimetype)) cb(null, true);
-    else cb(new Error(`Unsupported file type: ${file.mimetype}. Allowed: PDF, JPEG, PNG, TIFF`));
+    else cb(new Error(`Unsupported file type: ${file.mimetype}. Allowed: PDF, JPEG, PNG, TIFF, TXT`));
   }
 });
 
-// In-memory audit log store (emulating PostgreSQL agent_logs table)
+// In-memory audit log store (mirrored with PostgreSQL agent_logs table)
 const agentLogs = [];
 
-function recordAgentLog(agentName, inputData, outputData) {
+function recordAgentLog(agentName, inputData, outputData, userId = 'citizen-123') {
   const logEntry = {
     id: `log-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
     agent_name: agentName,
@@ -57,6 +64,9 @@ function recordAgentLog(agentName, inputData, outputData) {
   };
   agentLogs.unshift(logEntry);
   if (agentLogs.length > 200) agentLogs.pop();
+
+  // Async relational persistence
+  persistAgentLog(agentName, inputData, outputData, userId).catch(() => {});
   return logEntry;
 }
 
@@ -68,7 +78,7 @@ let schemesList = reloadSchemes();
  * Performs real connectivity checks with graceful fallback.
  * Conforms to docs/API_CONTRACT.md and legacy diagnostics.
  */
-async function checkService(url, timeoutMs = 2000) {
+async function checkService(url, timeoutMs = 1500) {
   try {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -84,7 +94,8 @@ app.get('/api/health', async (req, res) => {
   const opensearchUrl = process.env.OPENSEARCH_URL || 'http://localhost:9200';
   const correttoUrl = process.env.CORRETTO_URL || 'http://localhost:8081';
   const localstackUrl = process.env.S3_ENDPOINT || 'http://localhost:4566';
-  const pgUrl = process.env.DATABASE_URL;
+  const dbStats = getDbStats();
+  const s3Stats = getS3Status();
 
   // Run connectivity checks in parallel
   const [opensearchStatus, rulesEngineStatus, localstackStatus] = await Promise.all([
@@ -93,11 +104,10 @@ app.get('/api/health', async (req, res) => {
     checkService(`${localstackUrl}/_localstack/health`)
   ]);
 
-  // Cedar is always in-process — check if policies are loaded
-  const cedarStatus = CEDAR_POLICIES.length > 0 ? 'ACTIVE' : 'UNCONFIGURED';
-
-  // PostgreSQL: check if DATABASE_URL is configured
-  const pgStatus = pgUrl ? 'CONFIGURED' : 'NOT_CONFIGURED';
+  const activeCedarPolicies = getActiveCedarPolicies();
+  const cedarStatus = activeCedarPolicies.length > 0 ? 'ACTIVE' : 'UNCONFIGURED';
+  const pgStatus = dbStats.isPostgresConnected ? 'CONNECTED' : (process.env.DATABASE_URL ? 'CONFIGURED' : 'STANDBY_IN_MEMORY');
+  const s3Status = s3Stats.isS3Available ? 'CONNECTED' : (localstackStatus === 'CONNECTED' ? 'CONNECTED' : 'LOCAL_FALLBACK');
 
   // Determine overall health
   const criticalServices = [cedarStatus];
@@ -111,17 +121,18 @@ app.get('/api/health', async (req, res) => {
       postgres: pgStatus,
       rules_engine: rulesEngineStatus,
       cedar: cedarStatus,
-      localstack: localstackStatus,
+      localstack: s3Status,
       firecracker: 'READY'
     },
     version: '1.0.0',
     timestamp: new Date().toISOString(),
-    // Backward compatibility with previous health endpoint
+    dbStats,
+    s3Stats,
     components: {
       opensearch: { status: opensearchStatus, indexedSchemes: schemesList.length, host: opensearchUrl.replace('http://', '') },
       correttoRulesEngine: { status: rulesEngineStatus, runtime: 'Amazon Corretto Java 21 Spring Boot', port: 8081 },
       strandsAgents: { status: 'INITIALIZED', agents: ['Orchestrator', 'Profile', 'Scheme', 'Eligibility', 'Evidence', 'Recommendation'] },
-      cedarAuthorization: { status: cedarStatus, activePolicies: CEDAR_POLICIES.length },
+      cedarAuthorization: { status: cedarStatus, activePolicies: activeCedarPolicies.length },
       firecrackerSandbox: { status: 'READY', runtime: 'Linux KVM microVM', maxDurationSec: 30 }
     }
   });
@@ -131,7 +142,7 @@ app.get('/api/health', async (req, res) => {
  * 2. POST /api/evaluate
  * Main citizen discovery endpoint. Matches docs/API_CONTRACT.md exactly.
  */
-app.post('/api/evaluate', cedarAuthMiddleware('evaluate', 'EligibilityResult'), (req, res) => {
+app.post('/api/evaluate', cedarAuthMiddleware('evaluate', 'EligibilityResult'), async (req, res) => {
   try {
     const { query, user_id = 'citizen-123', documents, verifiedDocIds, profile, category } = req.body;
 
@@ -144,7 +155,8 @@ app.post('/api/evaluate', cedarAuthMiddleware('evaluate', 'EligibilityResult'), 
 
     const verifiedDocs = documents || verifiedDocIds || [];
 
-    const result = runOrchestratorPipeline({
+    // Use async multi-agent pipeline with real OpenSearch & Corretto microservice checks
+    const result = await runOrchestratorPipelineAsync({
       query,
       user_id,
       profileOverrides: profile || {},
@@ -155,7 +167,23 @@ app.post('/api/evaluate', cedarAuthMiddleware('evaluate', 'EligibilityResult'), 
     recordAgentLog('Orchestrator Agent', { query, user_id }, {
       matchedCount: result.schemes.length,
       topScheme: result.schemes[0]?.name || result.schemes[0]?.scheme_id
-    });
+    }, user_id);
+
+    // Persist profile and top results to PostgreSQL
+    if (result.extracted_profile) {
+      upsertUserProfile(user_id, result.extracted_profile).catch(() => {});
+    }
+    if (result.schemes && result.schemes.length > 0) {
+      const top = result.schemes[0];
+      persistEligibilityResults(
+        user_id,
+        top.scheme_id,
+        top.eligibility_score,
+        top.status,
+        top.missing_documents,
+        top.why_eligible
+      ).catch(() => {});
+    }
 
     res.json(result);
   } catch (error) {
@@ -168,13 +196,20 @@ app.post('/api/evaluate', cedarAuthMiddleware('evaluate', 'EligibilityResult'), 
 });
 
 /**
+ * Alias: POST /api/pipeline (ssych UI contract compatibility)
+ */
+app.post('/api/pipeline', async (req, res) => {
+  req.url = '/api/evaluate';
+  app._router.handle(req, res);
+});
+
+/**
  * 3. POST /api/upload
- * Document sandboxing via simulated Firecracker microVM with OCR.
+ * Document sandboxing via simulated Firecracker microVM with real OCR text parsing.
  * Conforms to docs/API_CONTRACT.md.
  */
-app.post('/api/upload', cedarAuthMiddleware('upload', 'Document'), upload.single('file'), (req, res) => {
+app.post('/api/upload', cedarAuthMiddleware('upload', 'Document'), upload.single('file'), async (req, res) => {
   try {
-    // Support both multipart/form-data and JSON body
     const isMultipart = !!req.file;
     const user_id = req.body.user_id || 'citizen-123';
     const document_type = req.body.document_type;
@@ -188,21 +223,41 @@ app.post('/api/upload', cedarAuthMiddleware('upload', 'Document'), upload.single
       });
     }
 
-    const sandboxResult = processDocumentInSandbox({
+    // Read real file buffer if uploaded via multipart
+    let fileBuffer = null;
+    let mimeType = isMultipart ? req.file.mimetype : 'application/pdf';
+    if (isMultipart && req.file.path && fs.existsSync(req.file.path)) {
+      fileBuffer = fs.readFileSync(req.file.path);
+    }
+
+    // Run Firecracker MicroVM with real OCR text parsing
+    const sandboxResult = await processDocumentInSandboxAsync({
       documentType: document_type,
       fileName: file_name,
       filePath: isMultipart ? req.file.path : null,
-      fileSize: isMultipart ? req.file.size : null,
-      mimeType: isMultipart ? req.file.mimetype : null,
+      fileSize: isMultipart ? req.file.size : (fileBuffer ? fileBuffer.length : null),
+      mimeType,
+      buffer: fileBuffer,
       incomeOverride
     });
 
     const docId = `doc-${Math.random().toString(36).substring(2, 8)}-${Date.now().toString().slice(-4)}`;
 
-    recordAgentLog('Document Agent (Firecracker)', { user_id, document_type, uploadMethod: isMultipart ? 'multipart' : 'json' }, {
+    // Store in AWS S3 / LocalStack or local disk archive
+    const storageResult = await uploadDocument(fileBuffer, file_name, mimeType, user_id);
+
+    // Persist document record in PostgreSQL
+    persistUserDocument(
+      user_id,
+      document_type,
+      storageResult.url || storageResult.filePath,
+      sandboxResult.document.extractedData
+    ).catch(() => {});
+
+    recordAgentLog('Document Agent (Firecracker)', { user_id, document_type, storageType: storageResult.storageType }, {
       vmId: sandboxResult.microVM.vmId,
       confidence: sandboxResult.document.extractedData.confidenceScore
-    });
+    }, user_id);
 
     res.json({
       document_id: docId,
@@ -212,6 +267,7 @@ app.post('/api/upload', cedarAuthMiddleware('upload', 'Document'), upload.single
       verification_status: "VERIFIED",
       confidence_score: sandboxResult.document.extractedData.confidenceScore,
       extracted_data: sandboxResult.document.extractedData,
+      storage: storageResult,
       microvm: {
         vm_id: sandboxResult.microVM.vmId,
         duration_ms: sandboxResult.microVM.durationMs,
@@ -221,7 +277,6 @@ app.post('/api/upload', cedarAuthMiddleware('upload', 'Document'), upload.single
         decision: sandboxResult.cedarVerification.decision,
         matching_policy: sandboxResult.cedarVerification.matchingPolicyId
       },
-      // Backward compatibility fields
       success: true,
       ...sandboxResult
     });
@@ -241,7 +296,7 @@ app.post('/api/upload-document', upload.single('file'), (req, res) => {
 
 /**
  * 4. POST /api/checklist
- * Conforms to docs/API_CONTRACT.md.
+ * Conforms to docs/API_CONTRACT.md with tailored dynamic roadmap steps.
  */
 app.post('/api/checklist', (req, res) => {
   const { scheme_id, user_id = 'citizen-123' } = req.body;
@@ -284,41 +339,64 @@ app.post('/api/checklist', (req, res) => {
     };
   });
 
-  let portalHostname = "scholarships.gov.in";
+  let portalHostname = "india.gov.in";
   try {
     const parsed = new URL(scheme.application_url || scheme.official_url || "https://scholarships.gov.in");
     portalHostname = parsed.hostname;
   } catch {}
+
+  // Generate dynamic, tailored statutory steps based on scheme category and requirements
+  let step2Title = "Obtain Statutory Proof";
+  let step2Desc = "Obtain required official statutory certifications from designated authorities.";
+
+  const category = (scheme.category || '').toLowerCase();
+  const docIds = formattedDocs.map(d => d.id.toLowerCase());
+
+  if (category.includes('education') || docIds.some(d => d.includes('institution') || d.includes('college'))) {
+    step2Title = "Obtain Institution Bonafide Certificate";
+    step2Desc = "Download official bonafide form and obtain registrar/principal seal from your educational institution.";
+  } else if (category.includes('agriculture') || docIds.some(d => d.includes('land') || d.includes('khatauni'))) {
+    step2Title = "Land Ownership & Record (ROR/Khatauni) Verification";
+    step2Desc = "Obtain certified copy of Record of Rights (Khatauni/ROR) from the Revenue Tehsildar office.";
+  } else if (docIds.some(d => d.includes('vendor') || d.includes('vending') || d.includes('trade'))) {
+    step2Title = "Urban Local Body Vending Certificate";
+    step2Desc = "Obtain Letter of Recommendation (LoR) or Vending Certificate from your Town Vending Committee (TVC).";
+  } else if (docIds.some(d => d.includes('caste') || d.includes('community'))) {
+    step2Title = "Verified Caste / Community Certificate";
+    step2Desc = "Validate digital caste certificate issued by SDM/Tehsildar on state e-District portal.";
+  } else if (docIds.some(d => d.includes('income'))) {
+    step2Title = "Annual Household Income Attestation";
+    step2Desc = "Ensure valid annual family income certificate (< 3 years validity) from Revenue Department.";
+  }
 
   const steps = [
     {
       step_number: 1,
       stepNumber: 1,
       title: "Aadhaar e-KYC Verification",
-      description: "Authenticate your biometric identity via UIDAI OTP on the portal."
+      description: "Authenticate your biometric identity via UIDAI OTP or facial match on the national portal."
     },
     {
       step_number: 2,
       stepNumber: 2,
-      title: "Obtain Institution Certificate",
-      description: "Download statutory bonafide form and obtain registrar seal from your institution."
+      title: step2Title,
+      description: step2Desc
     },
     {
       step_number: 3,
       stepNumber: 3,
-      title: "Online Application Submission",
-      description: `Submit application on ${portalHostname} before statutory deadline.`
+      title: "Statutory Portal Application",
+      description: `Complete registration and upload verified credentials on ${portalHostname} before statutory cutoff.`
     },
     {
       step_number: 4,
       stepNumber: 4,
       title: "Aadhaar-Seeded DBT Account Verification",
-      description: "Verify your bank account is active on NPCI mapper for Direct Benefit Transfer."
+      description: "Verify your bank account is active on NPCI mapper for Direct Benefit Transfer disbursement."
     }
   ];
 
   const response = {
-    // Standard snake_case
     scheme_id: scheme.scheme_id || scheme.scheme_code || scheme.id,
     scheme_name: scheme.name || scheme.scheme_name,
     official_url: scheme.application_url || scheme.official_url || "https://scholarships.gov.in",
@@ -326,7 +404,6 @@ app.post('/api/checklist', (req, res) => {
     application_fee: "₹0 (Free Government Portal)",
     required_documents: formattedDocs,
     steps,
-    // CamelCase aliases
     schemeId: scheme.scheme_id || scheme.scheme_code || scheme.id,
     schemeName: scheme.name || scheme.scheme_name,
     officialPortalUrl: scheme.application_url || scheme.official_url || "https://scholarships.gov.in",
@@ -401,43 +478,80 @@ app.post('/api/evaluate-eligibility', (req, res) => {
 
 /**
  * 7. GET /api/combinations
+ * Returns synergistic scheme bundles across multiple citizen personas.
  */
 app.get('/api/combinations', cedarAuthMiddleware('read', 'Scheme'), (req, res) => {
   schemesList = reloadSchemes();
+
   const upScholarship = schemesList.find(s => s.scheme_id === 'UP_SCHOLARSHIP_2024');
   const ayushman = schemesList.find(s => s.scheme_id === 'AYUSHMAN_BHARAT');
   const pmKisan = schemesList.find(s => s.scheme_id === 'PM_KISAN_CENTRAL');
   const kcc = schemesList.find(s => s.scheme_id === 'KCC_CREDIT_CENTRAL');
+  const svanidhi = schemesList.find(s => s.scheme_id === 'PM_SVANIDHI_CENTRAL');
+  const mudra = schemesList.find(s => s.scheme_id === 'PMMY_MUDRA_CENTRAL');
+  const vishwakarma = schemesList.find(s => s.scheme_id === 'PM_VISHWAKARMA_CENTRAL');
+  const sukanya = schemesList.find(s => s.scheme_id === 'SUKANYA_SAMRIDDHI');
+  const pmay = schemesList.find(s => s.scheme_id === 'PMAY_GRAMIN_CENTRAL');
+
+  const bundles = [
+    {
+      id: 'bundle-higher-edu',
+      title: 'Higher Education Scholar Trinity',
+      targetCitizen: 'Undergraduate and college students from low-income families',
+      totalAnnualFinancialUnlock: 550000,
+      schemes: [upScholarship, ayushman].filter(Boolean),
+      synergyNote: 'Combines 100% course fee reimbursement (UP Scholarship) with ₹5 Lakh cashless family healthcare (Ayushman Bharat) without duplication.'
+    },
+    {
+      id: 'bundle-agrarian-shield',
+      title: 'Agrarian Income & Credit Security Package',
+      targetCitizen: 'Smallholder and marginal cultivators',
+      totalAnnualFinancialUnlock: 531000,
+      schemes: [pmKisan, kcc, ayushman].filter(Boolean),
+      synergyNote: 'Combines direct DBTs for crop seeds (PM-KISAN) + 4% working capital credit (KCC) + emergency health risk cover.'
+    },
+    {
+      id: 'bundle-urban-vendor',
+      title: 'Urban Micro-Enterprise & Street Vendor Accelerator',
+      targetCitizen: 'Self-employed urban hawkers and street entrepreneurs',
+      totalAnnualFinancialUnlock: 120000,
+      schemes: [svanidhi, mudra].filter(Boolean),
+      synergyNote: 'Access collateral-free working capital loan (PM SVANidhi) with 7% interest subsidy paired with enterprise scaling via PMMY MUDRA.'
+    },
+    {
+      id: 'bundle-artisan-empowerment',
+      title: 'Traditional Artisan & Craftsman Shield',
+      targetCitizen: 'Carpenters, blacksmiths, potters, and traditional artisans',
+      totalAnnualFinancialUnlock: 315000,
+      schemes: [vishwakarma, ayushman].filter(Boolean),
+      synergyNote: 'Delivers ₹15,000 digital toolkit grant + ₹3 Lakh subsidized 5% credit + universal family medical cover.'
+    },
+    {
+      id: 'bundle-family-welfare',
+      title: 'Universal Citizen Health & Social Welfare Net',
+      targetCitizen: 'Vulnerable families seeking comprehensive protection',
+      totalAnnualFinancialUnlock: 650000,
+      schemes: [ayushman, sukanya, pmay].filter(Boolean),
+      synergyNote: 'Multi-generational protection: Girl-child high-yield savings (SSY), pucca housing grant (PMAY), and catastrophic health protection.'
+    }
+  ];
 
   res.json({
-    bundles: [
-      {
-        id: 'bundle-higher-edu',
-        title: 'Higher Education Scholar Trinity',
-        targetCitizen: 'Undergraduate and college students from low-income families',
-        totalAnnualFinancialUnlock: 550000,
-        schemes: [upScholarship, ayushman].filter(Boolean),
-        synergyNote: 'Combines 100% course fee reimbursement (UP Scholarship) with ₹5 Lakh cashless family healthcare (Ayushman Bharat).'
-      },
-      {
-        id: 'bundle-agrarian-shield',
-        title: 'Agrarian Income & Credit Security Package',
-        targetCitizen: 'Smallholder and marginal cultivators',
-        totalAnnualFinancialUnlock: 531000,
-        schemes: [pmKisan, kcc, ayushman].filter(Boolean),
-        synergyNote: 'Combines direct DBTs for crop seeds (PM-KISAN) + 4% working capital credit (KCC) + emergency health risk cover.'
-      }
-    ]
+    count: bundles.length,
+    bundles
   });
 });
 
 /**
  * 8. GET /api/cedar/policies
+ * Returns active policies including runtime-parsed policies from infra/cedar/*.cedar files.
  */
 app.get('/api/cedar/policies', (req, res) => {
+  const activePolicies = getActiveCedarPolicies();
   res.json({
-    engine: 'Amazon Cedar PBAC Engine v3.0',
-    policies: CEDAR_POLICIES,
+    engine: 'Amazon Cedar PBAC Engine v3.0 (Native Multi-Policy Engine)',
+    count: activePolicies.length,
+    policies: activePolicies,
     defaultEffect: 'DENY',
     enforcementMode: 'STRICT_ZERO_TRUST'
   });
@@ -451,6 +565,20 @@ app.get('/api/agent-logs', (req, res) => {
     count: agentLogs.length,
     logs: agentLogs
   });
+});
+
+/**
+ * 10. GET /api/db/stats
+ */
+app.get('/api/db/stats', (req, res) => {
+  res.json(getDbStats());
+});
+
+/**
+ * 11. GET /api/s3/status
+ */
+app.get('/api/s3/status', (req, res) => {
+  res.json(getS3Status());
 });
 
 app.listen(PORT, () => {

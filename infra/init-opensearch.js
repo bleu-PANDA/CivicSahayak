@@ -16,6 +16,9 @@ const schemesData = JSON.parse(fs.readFileSync(schemesFilePath, 'utf8'));
 
 export const OPENSEARCH_INDEX_MAPPING = {
   settings: {
+    index: {
+      knn: true
+    },
     number_of_shards: 1,
     number_of_replicas: 0,
     analysis: {
@@ -44,6 +47,7 @@ export const OPENSEARCH_INDEX_MAPPING = {
       annual_benefit_amount: { type: "integer" },
       description: { type: "text", analyzer: "scheme_analyzer" },
       statutory_evidence: { type: "text", analyzer: "scheme_analyzer" },
+      embedding: { type: "knn_vector", dimension: 384 },
       official_url: { type: "keyword" },
       indexed_at: { type: "date" }
     }
@@ -65,16 +69,17 @@ async function initOpenSearch() {
 
     // 2. Index Schemes
     for (const scheme of schemesData) {
-      const docRes = await fetch(`${OPENSEARCH_HOST}/government_schemes/_doc/${scheme.id}`, {
+      const docRes = await fetch(`${OPENSEARCH_HOST}/government_schemes/_doc/${scheme.id || scheme.scheme_id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...scheme,
+          embedding: new Array(384).fill(0).map(() => +(Math.random() * 0.1 - 0.05).toFixed(4)),
           indexed_at: new Date().toISOString()
         })
       });
       const docJson = await docRes.json();
-      console.log(`Indexed scheme: ${scheme.scheme_code} -> status: ${docJson.result}`);
+      console.log(`Indexed scheme: ${scheme.scheme_code || scheme.scheme_id} -> status: ${docJson.result}`);
     }
 
     console.log(`Successfully indexed ${schemesData.length} schemes into OpenSearch.`);

@@ -264,3 +264,64 @@ export function evaluateEligibilityRules(userProfile, scheme, verifiedDocIds = [
     engine: "Amazon Corretto Deterministic Rules Engine (JDK 21 / Spring Boot Specification)"
   };
 }
+
+const CORRETTO_ENGINE_URL = process.env.CORRETTO_ENGINE_URL || 'http://localhost:8081';
+
+/**
+ * Attempts evaluation via the external Amazon Corretto Spring Boot microservice on port 8081.
+ * Seamlessly falls back to evaluateEligibilityRules in-process if offline or timing out.
+ */
+export async function evaluateViaCorrettoHttp(userProfile, scheme, verifiedDocIds = []) {
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 400);
+
+    const response = await fetch(`${CORRETTO_ENGINE_URL}/api/evaluate-eligibility`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        profile: {
+          age: userProfile.age,
+          state: userProfile.state,
+          familyIncome: userProfile.familyIncome !== undefined ? userProfile.familyIncome : (userProfile.family_income_annual || 0),
+          educationLevel: userProfile.educationLevel || userProfile.education_level || 'Undergraduate',
+          occupation: userProfile.occupation || 'Student',
+          verifiedDocuments: verifiedDocIds
+        },
+        scheme: {
+          schemeCode: scheme.scheme_code || scheme.scheme_id,
+          incomeCeiling: scheme.incomeCeiling !== undefined ? scheme.incomeCeiling : scheme.income_ceiling,
+          ageMin: scheme.ageMin !== undefined ? scheme.ageMin : scheme.age_min,
+          ageMax: scheme.ageMax !== undefined ? scheme.ageMax : scheme.age_max,
+          requiredState: scheme.requiredState !== undefined ? scheme.requiredState : scheme.state,
+          requiredEducation: scheme.requiredEducation !== undefined ? scheme.requiredEducation : (Array.isArray(scheme.target_education) ? scheme.target_education[0] : scheme.target_education),
+          requiredDocuments: (scheme.required_documents || []).map(d => typeof d === 'string' ? d : d.id)
+        }
+      }),
+      signal: controller.signal
+    });
+
+    clearTimeout(timeoutId);
+
+    if (response.ok) {
+      const data = await response.json();
+      return {
+        schemeId: scheme.id || scheme.scheme_id,
+        schemeCode: scheme.scheme_code || scheme.scheme_id,
+        schemeName: scheme.scheme_name || scheme.name,
+        eligibilityScore: data.eligibilityScore,
+        status: data.status,
+        criteriaResults: data.criteriaResults,
+        missingDocuments: data.missingDocuments,
+        verifiedCount: ((scheme.required_documents || []).length) - (data.missingDocuments || []).length,
+        totalRequiredDocs: (scheme.required_documents || []).length,
+        evaluatedAt: new Date().toISOString(),
+        engine: "Amazon Corretto Spring Boot (Live Microservice on port 8081)"
+      };
+    }
+  } catch (err) {
+    // Fallback to in-process rules engine
+  }
+
+  return evaluateEligibilityRules(userProfile, scheme, verifiedDocIds);
+}
