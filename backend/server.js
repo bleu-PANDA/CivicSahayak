@@ -209,20 +209,16 @@ app.post('/api/pipeline', async (req, res) => {
  * Document sandboxing via simulated Firecracker microVM with real OCR text parsing.
  * Conforms to docs/API_CONTRACT.md.
  */
-app.post('/api/upload', cedarAuthMiddleware('upload', 'Document'), upload.single('file'), async (req, res) => {
+const handleDocumentUpload = async (req, res) => {
   try {
     const isMultipart = !!req.file;
-    const user_id = req.body.user_id || 'citizen-123';
-    const document_type = req.body.document_type;
-    const file_name = isMultipart ? req.file.originalname : (req.body.file_name || `${document_type}_2026.pdf`);
-    const incomeOverride = req.body.incomeOverride;
-
-    if (!document_type) {
-      return res.status(400).json({
-        error: 'Invalid request payload',
-        message: 'document_type is required'
-      });
-    }
+    const body = req.body || {};
+    const user_id = body.user_id || body.userId || 'citizen-123';
+    const document_type = body.document_type || body.documentType || req.query?.document_type || req.query?.documentType || 'income_certificate';
+    const file_name = isMultipart
+      ? req.file.originalname
+      : (body.file_name || body.fileName || `${document_type}_2026.pdf`);
+    const incomeOverride = body.incomeOverride || body.income_override;
 
     // Read real file buffer if uploaded via multipart
     let fileBuffer = null;
@@ -264,6 +260,7 @@ app.post('/api/upload', cedarAuthMiddleware('upload', 'Document'), upload.single
       document_id: docId,
       user_id,
       document_type,
+      documentType: document_type,
       upload_method: isMultipart ? 'multipart/form-data' : 'application/json',
       verification_status: "VERIFIED",
       confidence_score: sandboxResult.document.extractedData.confidenceScore,
@@ -274,26 +271,27 @@ app.post('/api/upload', cedarAuthMiddleware('upload', 'Document'), upload.single
         duration_ms: sandboxResult.microVM.durationMs,
         lifecycle: sandboxResult.microVM.lifecycle
       },
+      microVM: sandboxResult.microVM,
+      document: sandboxResult.document,
       cedar_authorization: {
         decision: sandboxResult.cedarVerification.decision,
         matching_policy: sandboxResult.cedarVerification.matchingPolicyId
       },
+      cedarVerification: sandboxResult.cedarVerification,
       success: true,
       ...sandboxResult
     });
   } catch (err) {
     res.status(403).json({
       error: 'Cedar Authorization Denied or Extraction Error',
-      message: err.message
+      message: err.message,
+      success: false
     });
   }
-});
+};
 
-// Alias for frontend — supports both multipart and JSON
-app.post('/api/upload-document', upload.single('file'), (req, res) => {
-  req.url = '/api/upload';
-  app._router.handle(req, res);
-});
+app.post('/api/upload', cedarAuthMiddleware('upload', 'Document'), upload.single('file'), handleDocumentUpload);
+app.post('/api/upload-document', cedarAuthMiddleware('upload', 'Document'), upload.single('file'), handleDocumentUpload);
 
 /**
  * 4. POST /api/checklist
